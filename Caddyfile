@@ -1,0 +1,53 @@
+# HeySpoilMe Caddy Configuration
+# Automatic HTTPS with Let's Encrypt
+
+# Frontend
+heyspoil.me {
+	reverse_proxy frontend:3001
+	
+	# Security headers
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+	
+	# Gzip compression
+	encode gzip
+	
+	# Logs
+	log {
+		output file /var/log/caddy/frontend.log
+	}
+}
+
+# Backend API
+api.heyspoil.me {
+	reverse_proxy backend:8081
+	
+	# Security headers
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy strict-origin-when-cross-origin
+		Access-Control-Allow-Origin https://heyspoil.me
+		Access-Control-Allow-Methods "GET, POST, OPTIONS"
+		Access-Control-Allow-Headers "Content-Type, Accept"
+	}
+	
+	# Gzip compression
+	encode gzip
+	
+	# Logs
+	log {
+		output file /var/log/caddy/api.log
+	}
+}
+
+# Redirect www to non-www
+www.heyspoil.me {
+	redir https://heyspoil.me{uri} permanent
+}
+
