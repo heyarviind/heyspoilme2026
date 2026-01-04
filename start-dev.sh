@@ -46,7 +46,9 @@ trap cleanup EXIT
 echo -e "${YELLOW}Starting Backend (Go)...${NC}"
 cd backend
 export DATABASE_URL="postgres://postgres:postgres@localhost:5433/heyspoilme?sslmode=disable"
-export PORT=8081
+export PORT=8080
+export FRONTEND_URL="http://localhost:3003"
+export JWT_SECRET="dev-secret-change-in-production"
 
 # Download dependencies if go.sum doesn't exist
 if [ ! -f "go.sum" ]; then
@@ -54,14 +56,20 @@ if [ ! -f "go.sum" ]; then
     go mod tidy
 fi
 
-go run main.go &
+# Run migrations if migrate is installed
+if command -v migrate &> /dev/null; then
+    echo -e "${YELLOW}Running database migrations...${NC}"
+    migrate -path ./migrations -database "$DATABASE_URL" up 2>/dev/null || true
+fi
+
+go run ./cmd/server &
 BACKEND_PID=$!
 cd ..
 
 # Wait for backend to start
 sleep 3
 if kill -0 $BACKEND_PID 2>/dev/null; then
-    echo -e "${GREEN}Backend running on http://localhost:8081${NC}"
+    echo -e "${GREEN}Backend running on http://localhost:8080${NC}"
 else
     echo -e "${RED}Backend failed to start${NC}"
 fi
@@ -80,9 +88,10 @@ echo -e "${GREEN}HeySpoilMe Development Environment Started!${NC}"
 echo -e "${GREEN}================================================${NC}"
 echo ""
 echo -e "  Frontend:  ${GREEN}http://localhost:3003${NC}"
-echo -e "  Backend:   ${GREEN}http://localhost:8081${NC}"
+echo -e "  Backend:   ${GREEN}http://localhost:8080${NC}"
 echo -e "  Database:  ${GREEN}localhost:5433${NC}"
 echo ""
+echo -e "${YELLOW}Note: Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET for OAuth${NC}"
 echo -e "${YELLOW}Press Ctrl+C to stop all services${NC}"
 echo ""
 

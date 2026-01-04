@@ -136,6 +136,8 @@ func subscribe(c *gin.Context) {
 			"message": "Email and gender are required",
 		})
 		return
+
+		
 	}
 
 	// Validate email format

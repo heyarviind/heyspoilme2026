@@ -78,7 +78,7 @@
 		height: 20px;
 		border: 2px solid rgba(128, 128, 128, 0.3);
 		border-top-color: currentColor;
-		border-radius: 50%;
+		border-radius: 0;
 		animation: spin 0.8s linear infinite;
 	}
 
