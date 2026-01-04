@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -14,6 +16,7 @@ import (
 )
 
 var db *sql.DB
+var discordWebhookURL string
 
 type EmailSubscription struct {
 	Email  string `json:"email" binding:"required"`
@@ -25,7 +28,32 @@ type HealthResponse struct {
 	Timestamp string `json:"timestamp"`
 }
 
+type DiscordWebhook struct {
+	Content string         `json:"content,omitempty"`
+	Embeds  []DiscordEmbed `json:"embeds,omitempty"`
+}
+
+type DiscordEmbed struct {
+	Title       string        `json:"title,omitempty"`
+	Description string        `json:"description,omitempty"`
+	Color       int           `json:"color,omitempty"`
+	Fields      []EmbedField  `json:"fields,omitempty"`
+	Timestamp   string        `json:"timestamp,omitempty"`
+}
+
+type EmbedField struct {
+	Name   string `json:"name"`
+	Value  string `json:"value"`
+	Inline bool   `json:"inline,omitempty"`
+}
+
 func main() {
+	// Discord webhook URL
+	discordWebhookURL = os.Getenv("DISCORD_WEBHOOK_URL")
+	if discordWebhookURL == "" {
+		discordWebhookURL = "https://discord.com/api/webhooks/1457381901642895444/ubTk45MMMQ5XZBxYXeN44ibk6j7MtQSVcqPwPK5fZeRxjjkViwQYb82JtjmwD1uqxqe1"
+	}
+
 	// Database connection
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
@@ -140,9 +168,62 @@ func subscribe(c *gin.Context) {
 		return
 	}
 
+	// Send Discord notification (async)
+	go sendDiscordNotification(input.Email, input.Gender)
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Thank you! We'll notify you when we launch.",
 	})
 }
 
+func sendDiscordNotification(email, gender string) {
+	if discordWebhookURL == "" {
+		return
+	}
+
+	genderLabel := "Man"
+	if gender == "woman" {
+		genderLabel = "Woman"
+	}
+
+	webhook := DiscordWebhook{
+		Embeds: []DiscordEmbed{
+			{
+				Title:       "New Waitlist Signup",
+				Description: "Someone just joined the HeySpoilMe waitlist!",
+				Color:       0x00FF00, // Green
+				Fields: []EmbedField{
+					{
+						Name:   "Email",
+						Value:  email,
+						Inline: true,
+					},
+					{
+						Name:   "Gender",
+						Value:  genderLabel,
+						Inline: true,
+					},
+				},
+				Timestamp: time.Now().UTC().Format(time.RFC3339),
+			},
+		},
+	}
+
+	jsonData, err := json.Marshal(webhook)
+	if err != nil {
+		log.Printf("Discord webhook marshal error: %v", err)
+		return
+	}
+
+	resp, err := http.Post(discordWebhookURL, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Printf("Discord webhook error: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		log.Printf("Discord webhook returned status: %d", resp.StatusCode)
+	}
+}
