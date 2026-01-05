@@ -121,7 +121,14 @@ func main() {
 
 	// CORS configuration
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{cfg.FrontendURL, "http://localhost:5173", "http://localhost:3000", "http://localhost:3003"},
+		AllowOrigins: []string{
+			cfg.FrontendURL,
+			"https://heyspoil.me",
+			"https://www.heyspoil.me",
+			"http://localhost:5173",
+			"http://localhost:3000",
+			"http://localhost:3003",
+		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
