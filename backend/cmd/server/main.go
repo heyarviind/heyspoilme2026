@@ -227,6 +227,7 @@ func main() {
 		adminRoutes.GET("/users/:userId", adminHandler.GetUser)
 		adminRoutes.DELETE("/users/:userId", adminHandler.DeleteUser)
 		adminRoutes.PUT("/users/:userId/wealth-status", adminHandler.UpdateUserWealthStatus)
+		adminRoutes.PUT("/users/:userId/verification-status", adminHandler.UpdateUserVerificationStatus)
 		adminRoutes.PUT("/users/:userId/presence", adminHandler.UpdateUserPresence)
 		adminRoutes.PUT("/users/:userId/profile", adminHandler.UpdateUserProfile)
 		adminRoutes.POST("/users/:userId/upload-url", adminHandler.GetUserUploadURL)

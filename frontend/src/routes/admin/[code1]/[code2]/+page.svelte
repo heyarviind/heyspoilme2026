@@ -35,6 +35,77 @@
 	let imagesTotal = $state(0);
 	let imagesPage = $state(1);
 
+	// Read URL params and initialize state
+	function initFromUrl() {
+		const url = new URL(window.location.href);
+		const tab = url.searchParams.get('tab');
+		const pg = url.searchParams.get('page');
+		const search = url.searchParams.get('search');
+		const vFilter = url.searchParams.get('status');
+
+		if (tab && ['users', 'messages', 'verifications', 'images', 'settings'].includes(tab)) {
+			activeTab = tab as typeof activeTab;
+		}
+		
+		const pageNum = parseInt(pg || '1') || 1;
+		if (activeTab === 'users') usersPage = pageNum;
+		else if (activeTab === 'messages') messagesPage = pageNum;
+		else if (activeTab === 'images') imagesPage = pageNum;
+
+		if (search) userSearch = search;
+		if (vFilter) verificationFilter = vFilter;
+	}
+
+	// Update URL with current state
+	function updateUrl(options: { replaceState?: boolean } = {}) {
+		const url = new URL(window.location.href);
+		
+		url.searchParams.set('tab', activeTab);
+
+		let currentPage = 1;
+		if (activeTab === 'users') currentPage = usersPage;
+		else if (activeTab === 'messages') currentPage = messagesPage;
+		else if (activeTab === 'images') currentPage = imagesPage;
+
+		if (currentPage > 1) {
+			url.searchParams.set('page', currentPage.toString());
+		} else {
+			url.searchParams.delete('page');
+		}
+
+		if (userSearch && activeTab === 'users') {
+			url.searchParams.set('search', userSearch);
+		} else {
+			url.searchParams.delete('search');
+		}
+
+		if (activeTab === 'verifications' && verificationFilter) {
+			url.searchParams.set('status', verificationFilter);
+		} else {
+			url.searchParams.delete('status');
+		}
+
+		goto(url.pathname + url.search, { replaceState: options.replaceState ?? false, noScroll: true });
+	}
+
+	function switchTab(tab: typeof activeTab) {
+		activeTab = tab;
+		// Reset page when switching tabs
+		if (tab === 'users') usersPage = 1;
+		else if (tab === 'messages') messagesPage = 1;
+		else if (tab === 'images') imagesPage = 1;
+		updateUrl({ replaceState: false });
+		loadData();
+	}
+
+	function goToPage(newPage: number) {
+		if (activeTab === 'users') usersPage = newPage;
+		else if (activeTab === 'messages') messagesPage = newPage;
+		else if (activeTab === 'images') imagesPage = newPage;
+		updateUrl({ replaceState: false });
+		loadData();
+	}
+
 	// Feature Flags
 	let featureFlags = $state<any[]>([]);
 	let featureFlagUpdating = $state(false);
@@ -84,8 +155,17 @@
 		const p = $page;
 		code1 = p.params.code1 || '';
 		code2 = p.params.code2 || '';
+		initFromUrl();
 		await loadStats();
 		await loadData();
+
+		// Handle back/forward browser navigation
+		const handlePopState = () => {
+			initFromUrl();
+			loadData();
+		};
+		window.addEventListener('popstate', handlePopState);
+		return () => window.removeEventListener('popstate', handlePopState);
 	});
 
 	async function adminFetch(endpoint: string, options: RequestInit = {}) {
@@ -257,6 +337,23 @@
 				selectedUser.wealth_status = status;
 			}
 			await loadData();
+			await loadStats();
+		} catch (e: any) {
+			alert('Error: ' + e.message);
+		}
+	}
+
+	async function toggleVerificationStatus(userId: string, currentStatus: boolean) {
+		try {
+			await adminFetch(`/users/${userId}/verification-status`, {
+				method: 'PUT',
+				body: JSON.stringify({ is_verified: !currentStatus }),
+			});
+			if (selectedUser && selectedUser.id === userId) {
+				selectedUser.is_verified = !currentStatus;
+			}
+			// Update in list
+			users = users.map(u => u.id === userId ? { ...u, is_verified: !currentStatus } : u);
 			await loadStats();
 		} catch (e: any) {
 			alert('Error: ' + e.message);
@@ -488,21 +585,21 @@
 			<button 
 				class="nav-link" 
 				class:active={activeTab === 'users'}
-				onclick={() => { activeTab = 'users'; usersPage = 1; loadData(); }}
+				onclick={() => switchTab('users')}
 			>
 				Users
 			</button>
 			<button 
 				class="nav-link" 
 				class:active={activeTab === 'messages'}
-				onclick={() => { activeTab = 'messages'; messagesPage = 1; loadData(); }}
+				onclick={() => switchTab('messages')}
 			>
 				Messages
 			</button>
 			<button 
 				class="nav-link" 
 				class:active={activeTab === 'verifications'}
-				onclick={() => { activeTab = 'verifications'; loadData(); }}
+				onclick={() => switchTab('verifications')}
 			>
 				Verifications
 				{#if stats.pending_verifications}
@@ -512,14 +609,14 @@
 			<button 
 				class="nav-link" 
 				class:active={activeTab === 'images'}
-				onclick={() => { activeTab = 'images'; imagesPage = 1; loadData(); }}
+				onclick={() => switchTab('images')}
 			>
 				Images
 			</button>
 			<button 
 				class="nav-link" 
 				class:active={activeTab === 'settings'}
-				onclick={() => { activeTab = 'settings'; loadData(); }}
+				onclick={() => switchTab('settings')}
 			>
 				Settings
 			</button>
@@ -532,9 +629,9 @@
 				type="text" 
 				placeholder="Search by email or name..." 
 				bind:value={userSearch}
-				onkeydown={(e) => e.key === 'Enter' && loadData()}
+				onkeydown={(e) => { if (e.key === 'Enter') { usersPage = 1; updateUrl({ replaceState: true }); loadData(); } }}
 			/>
-			<button class="btn-search" onclick={() => loadData()}>Search</button>
+			<button class="btn-search" onclick={() => { usersPage = 1; updateUrl({ replaceState: true }); loadData(); }}>Search</button>
 		</div>
 		<div class="header-stats">
 			<div class="stat">
@@ -656,12 +753,12 @@
 			<div class="pagination">
 				<button 
 					disabled={usersPage <= 1} 
-					onclick={() => { usersPage--; loadData(); }}
+					onclick={() => goToPage(usersPage - 1)}
 				>← Prev</button>
 				<span>Page {usersPage} of {Math.ceil(usersTotal / 20)}</span>
 				<button 
 					disabled={usersPage >= Math.ceil(usersTotal / 20)} 
-					onclick={() => { usersPage++; loadData(); }}
+					onclick={() => goToPage(usersPage + 1)}
 				>Next →</button>
 			</div>
 
@@ -692,18 +789,18 @@
 			<div class="pagination">
 				<button 
 					disabled={messagesPage <= 1} 
-					onclick={() => { messagesPage--; loadData(); }}
+					onclick={() => goToPage(messagesPage - 1)}
 				>← Prev</button>
 				<span>Page {messagesPage} of {Math.ceil(messagesTotal / 50)}</span>
 				<button 
 					disabled={messagesPage >= Math.ceil(messagesTotal / 50)} 
-					onclick={() => { messagesPage++; loadData(); }}
+					onclick={() => goToPage(messagesPage + 1)}
 				>Next →</button>
 			</div>
 
 		{:else if activeTab === 'verifications'}
 			<div class="toolbar">
-				<select bind:value={verificationFilter} onchange={() => loadData()}>
+				<select bind:value={verificationFilter} onchange={() => { updateUrl({ replaceState: true }); loadData(); }}>
 					<option value="pending">Pending</option>
 					<option value="approved">Approved</option>
 					<option value="rejected">Rejected</option>
@@ -792,13 +889,13 @@
 			<div class="pagination">
 				<button 
 					disabled={imagesPage <= 1} 
-					onclick={() => { imagesPage--; loadData(); }}
-				>Prev</button>
+					onclick={() => goToPage(imagesPage - 1)}
+				>← Prev</button>
 				<span>Page {imagesPage} of {Math.ceil(imagesTotal / 50) || 1}</span>
 				<button 
 					disabled={imagesPage >= Math.ceil(imagesTotal / 50)} 
-					onclick={() => { imagesPage++; loadData(); }}
-				>Next</button>
+					onclick={() => goToPage(imagesPage + 1)}
+				>Next →</button>
 			</div>
 
 		{:else if activeTab === 'settings'}
@@ -891,7 +988,19 @@
 						</div>
 						<div class="detail-row">
 							<span class="label">ID Verified:</span>
-							<span class="value">{selectedUser.is_verified ? 'Yes' : 'No'}</span>
+							<span class="value verification-toggle">
+								{#if selectedUser.is_verified}
+									<span class="verified-dot"></span> Yes
+								{:else}
+									No
+								{/if}
+								<button 
+									class="btn-mini" 
+									onclick={() => toggleVerificationStatus(selectedUser.id, selectedUser.is_verified)}
+								>
+									{selectedUser.is_verified ? 'Unverify' : 'Verify'}
+								</button>
+							</span>
 						</div>
 						{#if selectedUser.is_fake}
 							<div class="detail-row">
@@ -1963,9 +2072,18 @@
 		color: #fff;
 	}
 
-	.online-toggle {
+	.online-toggle,
+	.verification-toggle {
 		display: flex;
 		align-items: center;
+	}
+
+	.verified-dot {
+		display: inline-block;
+		width: 8px;
+		height: 8px;
+		background: #60a5fa;
+		border-radius: 50%;
 	}
 
 	.bio-value {

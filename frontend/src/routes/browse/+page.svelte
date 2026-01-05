@@ -68,22 +68,24 @@
 		}
 	}
 
-	// Read filters from URL on page load
+	// Read filters and page from URL on page load
 	function initFiltersFromUrl() {
 		const url = new URL(window.location.href);
 		const minAge = url.searchParams.get('minAge');
 		const maxAge = url.searchParams.get('maxAge');
 		const maxDistance = url.searchParams.get('maxDistance');
 		const onlineOnly = url.searchParams.get('onlineOnly');
+		const pageParam = url.searchParams.get('page');
 
 		if (minAge) filters.minAge = parseInt(minAge) || 21;
 		if (maxAge) filters.maxAge = parseInt(maxAge) || 60;
 		if (maxDistance) filters.maxDistance = parseInt(maxDistance) || 0;
 		if (onlineOnly === 'true') filters.onlineOnly = true;
+		if (pageParam) page = parseInt(pageParam) || 1;
 	}
 
-	// Update URL when filters change
-	function updateUrlParams() {
+	// Update URL when filters or page change
+	function updateUrlParams(options: { replaceState?: boolean } = {}) {
 		const url = new URL(window.location.href);
 		
 		if (filters.minAge > 21) {
@@ -110,11 +112,25 @@
 			url.searchParams.delete('onlineOnly');
 		}
 
-		goto(url.pathname + url.search, { replaceState: true, noScroll: true });
+		if (page > 1) {
+			url.searchParams.set('page', page.toString());
+		} else {
+			url.searchParams.delete('page');
+		}
+
+		goto(url.pathname + url.search, { replaceState: options.replaceState ?? false, noScroll: true });
 	}
 
 	function onFilterChange() {
-		updateUrlParams();
+		page = 1; // Reset to page 1 when filters change
+		updateUrlParams({ replaceState: true });
+		loadProfiles();
+	}
+
+	function loadMoreProfiles() {
+		page++;
+		updateUrlParams({ replaceState: false }); // Push new history entry for back button
+		window.scrollTo({ top: 0, behavior: 'smooth' });
 		loadProfiles();
 	}
 
@@ -180,11 +196,11 @@
 		}
 	}
 
-	function getPrimaryImage(profile: Profile): string {
+	function getPrimaryImage(profile: Profile): string | null {
 		const primary = profile.images?.find(img => img.is_primary);
 		if (primary) return primary.url;
 		if (profile.images?.length > 0) return profile.images[0].url;
-		return 'https://via.placeholder.com/300x400?text=No+Photo';
+		return null;
 	}
 
 	function formatDistance(km?: number): string {
@@ -218,6 +234,14 @@
 				unsub();
 			}
 		});
+
+		// Handle back/forward browser navigation
+		const handlePopState = () => {
+			initFiltersFromUrl();
+			loadProfiles();
+		};
+		window.addEventListener('popstate', handlePopState);
+		return () => window.removeEventListener('popstate', handlePopState);
 	});
 </script>
 
@@ -309,7 +333,13 @@
 					<div class="profile-card" class:verified={profile.is_verified}>
 						<a href="/profile/{profile.user_id}" class="card-link">
 							<div class="image-container">
-								<img src={getPrimaryImage(profile)} alt="{profile.age}" class="profile-image" />
+								{#if getPrimaryImage(profile)}
+									<img src={getPrimaryImage(profile)} alt="{profile.age}" class="profile-image" />
+								{:else}
+									<div class="no-image-placeholder">
+										<span>No image uploaded</span>
+									</div>
+								{/if}
 								{#if !profile.is_verified}
 									<span class="not-verified-badge">NOT VERIFIED</span>
 								{/if}
@@ -354,7 +384,7 @@
 			{#if total > profiles.length}
 				<div class="pagination">
 					<button 
-						onclick={() => { page++; loadProfiles(); }}
+						onclick={loadMoreProfiles}
 						class="load-more"
 					>
 						Load More
@@ -617,6 +647,22 @@
 		object-fit: cover;
 	}
 
+	.no-image-placeholder {
+		width: 100%;
+		height: 100%;
+		background: rgba(255, 255, 255, 0.05);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		text-align: center;
+		padding: 1rem;
+	}
+
+	.no-image-placeholder span {
+		color: rgba(255, 255, 255, 0.4);
+		font-size: 0.85rem;
+	}
+
 	.online-badge {
 		position: absolute;
 		top: 0.75rem;
@@ -788,6 +834,29 @@
 		.profiles-grid {
 			grid-template-columns: repeat(2, 1fr);
 			gap: 1rem;
+		}
+
+		.not-verified-badge {
+			bottom: auto;
+			top: 0.5rem;
+			right: 0.5rem;
+			font-size: 0.6rem;
+			padding: 0.15rem 0.35rem;
+		}
+
+		.distance-badge {
+			bottom: 0.5rem;
+			left: 0.5rem;
+			font-size: 0.65rem;
+			padding: 0.15rem 0.35rem;
+		}
+
+		.online-badge {
+			top: 0.5rem;
+			right: auto;
+			left: 0.5rem;
+			width: 10px;
+			height: 10px;
 		}
 	}
 </style>

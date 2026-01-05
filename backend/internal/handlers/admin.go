@@ -277,6 +277,31 @@ func (h *AdminHandler) UpdateUserWealthStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "wealth status updated"})
 }
 
+// UpdateUserVerificationStatus updates a user's identity verification status
+func (h *AdminHandler) UpdateUserVerificationStatus(c *gin.Context) {
+	userIDStr := c.Param("userId")
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+
+	var req struct {
+		IsVerified bool `json:"is_verified"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.adminService.UpdateUserVerificationStatus(userID, req.IsVerified); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "verification status updated", "is_verified": req.IsVerified})
+}
+
 // ListAllImages returns all images from profile, messages, and verification
 func (h *AdminHandler) ListAllImages(c *gin.Context) {
 	page := 1

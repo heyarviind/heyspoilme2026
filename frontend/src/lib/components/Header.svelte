@@ -111,6 +111,10 @@
 			padding: 1rem;
 		}
 
+		.logo {
+			height: 1.5rem;
+		}
+
 		.nav {
 			gap: 1rem;
 		}

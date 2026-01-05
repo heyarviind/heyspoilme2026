@@ -85,6 +85,11 @@ func (s *AdminService) UpdateUserWealthStatus(userID uuid.UUID, status string) e
 	return s.adminRepo.UpdateUserWealthStatus(userID, status)
 }
 
+// UpdateUserVerificationStatus updates a user's identity verification status
+func (s *AdminService) UpdateUserVerificationStatus(userID uuid.UUID, isVerified bool) error {
+	return s.adminRepo.UpdateUserVerificationStatus(userID, isVerified)
+}
+
 // GetStats returns admin dashboard stats
 func (s *AdminService) GetStats() (map[string]interface{}, error) {
 	return s.adminRepo.GetStats()

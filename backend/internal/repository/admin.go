@@ -529,6 +529,14 @@ func (r *AdminRepository) UpdateUserWealthStatus(userID uuid.UUID, status string
 	return err
 }
 
+// UpdateUserVerificationStatus updates a user's identity verification status
+func (r *AdminRepository) UpdateUserVerificationStatus(userID uuid.UUID, isVerified bool) error {
+	_, err := r.db.Exec(`
+		UPDATE profiles SET is_verified = $1, updated_at = $2 WHERE user_id = $3
+	`, isVerified, time.Now().UTC(), userID)
+	return err
+}
+
 // GetStats returns admin dashboard stats
 func (r *AdminRepository) GetStats() (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
