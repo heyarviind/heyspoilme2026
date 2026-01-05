@@ -6,3 +6,4 @@ ALTER TABLE users DROP COLUMN IF EXISTS password_hash;
 -- You may need to handle this manually
 
 
+

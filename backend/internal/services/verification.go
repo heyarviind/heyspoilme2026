@@ -105,3 +105,4 @@ func (s *VerificationService) GetVerificationStatus(userID uuid.UUID) (*models.V
 }
 
 
+

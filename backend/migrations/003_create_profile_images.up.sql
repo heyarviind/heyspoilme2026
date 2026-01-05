@@ -11,3 +11,4 @@ CREATE TABLE profile_images (
 CREATE INDEX idx_profile_images_user_id ON profile_images(user_id);
 
 
+

@@ -15,3 +15,4 @@ CREATE INDEX idx_conversation_participants_user ON conversation_participants(use
 CREATE INDEX idx_conversations_updated ON conversations(updated_at DESC);
 
 
+

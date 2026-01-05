@@ -12,3 +12,4 @@ CREATE INDEX idx_users_google_id ON users(google_id);
 CREATE INDEX idx_users_email ON users(email);
 
 
+

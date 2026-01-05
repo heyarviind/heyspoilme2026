@@ -5,3 +5,4 @@ ALTER TABLE profiles ADD COLUMN profile_score FLOAT NOT NULL DEFAULT 0;
 CREATE INDEX idx_profiles_score ON profiles(profile_score DESC);
 
 
+

@@ -50,3 +50,4 @@ func (m *VerificationMiddleware) RequireEmailVerified() gin.HandlerFunc {
 }
 
 
+

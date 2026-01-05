@@ -30,6 +30,9 @@ cd "$SCRIPT_DIR"
 # Helper Functions
 # ===========================================
 
+# Add Go bin paths to PATH
+export PATH="$PATH:$HOME/go/bin:/root/go/bin:/usr/local/go/bin"
+
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
@@ -325,11 +328,11 @@ show_status() {
     
     echo ""
     echo -e "  Frontend:  ${GREEN}http://localhost:${FRONTEND_PORT}${NC} → ${GREEN}https://heyspoil.me${NC}"
-    echo -e "  Backend:   ${GREEN}http://localhost:8081${NC} → ${GREEN}https://heyspoil.me/api${NC}"
+    echo -e "  Backend:   ${GREEN}http://localhost:8081${NC} → ${GREEN}https://api.heyspoil.me${NC}"
     echo ""
     echo -e "${YELLOW}Global Caddy should proxy:${NC}"
-    echo -e "  heyspoil.me      → localhost:${FRONTEND_PORT}"
-    echo -e "  heyspoil.me/api  → localhost:8081"
+    echo -e "  heyspoil.me       → localhost:${FRONTEND_PORT}"
+    echo -e "  api.heyspoil.me   → localhost:8081"
     echo ""
     echo -e "${YELLOW}View logs:${NC} docker-compose -f docker-compose.prod.yml logs -f"
     echo -e "${YELLOW}Stop all:${NC}  ./deploy.sh down"

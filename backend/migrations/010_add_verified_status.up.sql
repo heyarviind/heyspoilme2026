@@ -5,3 +5,4 @@ ALTER TABLE profiles ADD COLUMN is_verified BOOLEAN DEFAULT FALSE;
 CREATE INDEX idx_profiles_verified ON profiles(is_verified) WHERE is_verified = true;
 
 
+

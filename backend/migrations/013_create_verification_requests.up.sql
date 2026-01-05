@@ -25,3 +25,4 @@ ON verification_requests(user_id)
 WHERE status = 'pending';
 
 
+

@@ -67,3 +67,4 @@ WHERE wealth_status != 'none' AND wealth_status_expires_at IS NOT NULL;
 --    - Then: online status, activity, profile score
 
 
+

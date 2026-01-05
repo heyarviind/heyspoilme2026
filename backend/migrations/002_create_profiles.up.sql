@@ -23,3 +23,4 @@ CREATE INDEX idx_profiles_state ON profiles(state);
 CREATE INDEX idx_profiles_location ON profiles(latitude, longitude);
 
 
+
