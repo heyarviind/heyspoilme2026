@@ -120,6 +120,7 @@
 			</button>
 		</form>
 
+		<!-- Google login hidden temporarily
 		<div class="divider">
 			<span>or</span>
 		</div>
@@ -135,6 +136,7 @@
 			</svg>
 			<span>Continue with Google</span>
 		</a>
+		-->
 
 		<button class="toggle-mode" onclick={toggleMode}>
 			{mode === 'signin' ? "Don't have an account? Sign Up" : 'Already have an account? Sign In'}
