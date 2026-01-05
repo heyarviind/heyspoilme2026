@@ -1,24 +1,4 @@
 services:
-  # Caddy Reverse Proxy (handles HTTPS)
-  caddy:
-    image: caddy:2-alpine
-    container_name: heyspoilme-caddy
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-      - caddy_logs:/var/log/caddy
-    depends_on:
-      frontend:
-        condition: service_healthy
-      backend:
-        condition: service_healthy
-
   # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
@@ -75,6 +55,8 @@ services:
       # Admin
       ADMIN_CODE_1: ${ADMIN_CODE_1}
       ADMIN_CODE_2: ${ADMIN_CODE_2}
+    ports:
+      - "127.0.0.1:8081:8081"  # Expose to localhost for Caddy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/health"]
       interval: 10s
@@ -94,10 +76,12 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      PORT: 3001
-      PUBLIC_API_URL: http://backend:8081
+      PORT: ${FRONTEND_PORT:-3003}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-https://heyspoil.me}
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3003}:${FRONTEND_PORT:-3003}"  # Expose to localhost for Caddy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001"]
+      test: ["CMD", "sh", "-c", "wget -q --spider http://localhost:$${PORT:-3003}"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -108,8 +92,5 @@ services:
 
 volumes:
   postgres_data:
-  caddy_data:
-  caddy_config:
-  caddy_logs:
 
 

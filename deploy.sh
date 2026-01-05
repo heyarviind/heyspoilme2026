@@ -128,33 +128,28 @@ pull_latest() {
 }
 
 stop_conflicting_services() {
-    log_info "Checking for conflicting services..."
+    log_info "Checking for port conflicts..."
     
-    # Check if port 3001 is in use
-    if lsof -i :3001 > /dev/null 2>&1; then
-        log_warn "Port 3001 is in use. Attempting to free it..."
-        
-        # Try to stop any existing heyspoilme containers first
-        docker stop heyspoilme-frontend 2>/dev/null || true
-        docker rm heyspoilme-frontend 2>/dev/null || true
-        
-        # If still in use, show what's using it
-        if lsof -i :3001 > /dev/null 2>&1; then
-            log_warn "Port 3001 still in use by:"
-            lsof -i :3001 || true
-            log_error "Please manually stop the process using port 3001"
-            exit 1
+    source .env
+    FRONTEND_PORT="${FRONTEND_PORT:-3003}"
+    BACKEND_PORT="8081"
+    
+    # Check if ports are in use by non-heyspoilme services
+    for port in $FRONTEND_PORT $BACKEND_PORT; do
+        if lsof -i :$port > /dev/null 2>&1; then
+            # Check if it's our container
+            if docker ps --format '{{.Names}}' | grep -q "heyspoilme"; then
+                log_info "Port $port in use by heyspoilme container (will be replaced)"
+            else
+                log_warn "Port $port is in use by another process:"
+                lsof -i :$port | head -3 || true
+                log_error "Please stop the process using port $port first"
+                exit 1
+            fi
         fi
-    fi
+    done
     
-    # Check if port 8081 is in use
-    if lsof -i :8081 > /dev/null 2>&1; then
-        log_warn "Port 8081 is in use. Attempting to free it..."
-        docker stop heyspoilme-backend 2>/dev/null || true
-        docker rm heyspoilme-backend 2>/dev/null || true
-    fi
-    
-    log_success "No port conflicts"
+    log_success "Port checks complete"
 }
 
 run_migrations() {
@@ -291,11 +286,6 @@ deploy_services() {
         done
         sleep 2
         
-        # Reload Caddy to pick up new containers
-        log_info "Reloading Caddy..."
-        docker-compose -f docker-compose.prod.yml up -d --no-deps caddy
-        docker exec heyspoilme-caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
-        
         # Remove old containers
         log_info "Removing old containers..."
         docker stop heyspoilme-backend-old 2>/dev/null || true
@@ -315,17 +305,16 @@ deploy_services() {
         # Deploy frontend
         log_info "Deploying frontend..."
         docker-compose -f docker-compose.prod.yml up -d --no-deps frontend
-        sleep 2
-        
-        # Deploy Caddy
-        log_info "Deploying Caddy..."
-        docker-compose -f docker-compose.prod.yml up -d --no-deps caddy
         
         log_success "Fresh deployment complete"
+        log_info "Make sure your global Caddy is configured to proxy to localhost:3001 and localhost:8081"
     fi
 }
 
 show_status() {
+    source .env 2>/dev/null || true
+    FRONTEND_PORT="${FRONTEND_PORT:-3003}"
+    
     echo ""
     echo -e "${GREEN}╔═══════════════════════════════════════════╗${NC}"
     echo -e "${GREEN}║         Deployment Complete!              ║${NC}"
@@ -335,8 +324,12 @@ show_status() {
     docker-compose -f docker-compose.prod.yml ps
     
     echo ""
-    echo -e "  Frontend:  ${GREEN}https://heyspoil.me${NC}"
-    echo -e "  Backend:   ${GREEN}https://heyspoil.me/api${NC}"
+    echo -e "  Frontend:  ${GREEN}http://localhost:${FRONTEND_PORT}${NC} → ${GREEN}https://heyspoil.me${NC}"
+    echo -e "  Backend:   ${GREEN}http://localhost:8081${NC} → ${GREEN}https://heyspoil.me/api${NC}"
+    echo ""
+    echo -e "${YELLOW}Global Caddy should proxy:${NC}"
+    echo -e "  heyspoil.me      → localhost:${FRONTEND_PORT}"
+    echo -e "  heyspoil.me/api  → localhost:8081"
     echo ""
     echo -e "${YELLOW}View logs:${NC} docker-compose -f docker-compose.prod.yml logs -f"
     echo -e "${YELLOW}Stop all:${NC}  ./deploy.sh down"
