@@ -97,3 +97,8 @@ func (r *NotificationRepository) GetUnreadCount(userID uuid.UUID) (int, error) {
 	`, userID).Scan(&count)
 	return count, err
 }
+
+func (r *NotificationRepository) DeleteAllForUser(userID uuid.UUID) error {
+	_, err := r.db.Exec(`DELETE FROM notifications WHERE user_id = $1`, userID)
+	return err
+}

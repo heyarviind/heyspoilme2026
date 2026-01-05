@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -32,6 +33,21 @@ func (h *ChatHandler) CreateConversation(c *gin.Context) {
 
 	conversation, err := h.chatService.CreateConversation(userID, &req)
 	if err != nil {
+		if errors.Is(err, services.ErrVerificationRequired) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":           "person_verification_required",
+				"message":         "Complete identity verification to send messages",
+				"person_verified": false,
+			})
+			return
+		}
+		if errors.Is(err, services.ErrMaleCannotInitiate) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":   "male_cannot_initiate",
+				"message": "Only women can start conversations",
+			})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -67,8 +83,24 @@ func (h *ChatHandler) SendMessage(c *gin.Context) {
 		return
 	}
 
-	message, err := h.chatService.SendMessage(conversationID, userID, req.Content)
+	message, err := h.chatService.SendMessage(conversationID, userID, req.Content, req.ImageURL)
 	if err != nil {
+		if errors.Is(err, services.ErrVerificationRequired) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":           "person_verification_required",
+				"message":         "Complete identity verification to send messages",
+				"person_verified": false,
+			})
+			return
+		}
+		if errors.Is(err, services.ErrWealthStatusRequired) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":         "subscription_required",
+				"message":       "Upgrade to send messages",
+				"wealth_status": "none",
+			})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -106,4 +138,29 @@ func (h *ChatHandler) GetMessages(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"messages": messages})
+}
+
+func (h *ChatHandler) GetUnreadCount(c *gin.Context) {
+	userID := c.MustGet("user_id").(uuid.UUID)
+
+	count, err := h.chatService.GetUnreadCount(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"count": count})
+}
+
+// GetInbox returns the user's inbox with locked message support for males
+func (h *ChatHandler) GetInbox(c *gin.Context) {
+	userID := c.MustGet("user_id").(uuid.UUID)
+
+	inbox, err := h.chatService.GetInbox(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, inbox)
 }

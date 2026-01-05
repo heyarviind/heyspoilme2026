@@ -15,14 +15,16 @@ import (
 type AuthHandler struct {
 	authService    *services.AuthService
 	profileService *services.ProfileService
+	accountService *services.AccountService
 	googleAuth     *auth.GoogleAuth
 	frontendURL    string
 }
 
-func NewAuthHandler(authService *services.AuthService, profileService *services.ProfileService, googleAuth *auth.GoogleAuth, frontendURL string) *AuthHandler {
+func NewAuthHandler(authService *services.AuthService, profileService *services.ProfileService, accountService *services.AccountService, googleAuth *auth.GoogleAuth, frontendURL string) *AuthHandler {
 	return &AuthHandler{
 		authService:    authService,
 		profileService: profileService,
+		accountService: accountService,
 		googleAuth:     googleAuth,
 		frontendURL:    frontendURL,
 	}
@@ -146,4 +148,41 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 		"user":    user,
 		"profile": profile,
 	})
+}
+
+func (h *AuthHandler) VerifyEmail(c *gin.Context) {
+	token := c.Query("token")
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "verification token required"})
+		return
+	}
+
+	if err := h.authService.VerifyEmail(token); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "email verified successfully"})
+}
+
+func (h *AuthHandler) ResendVerificationEmail(c *gin.Context) {
+	userID := c.MustGet("user_id").(uuid.UUID)
+
+	if err := h.authService.ResendVerificationEmail(userID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "verification email sent"})
+}
+
+func (h *AuthHandler) DeleteAccount(c *gin.Context) {
+	userID := c.MustGet("user_id").(uuid.UUID)
+
+	if err := h.accountService.DeleteAccount(userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete account"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "account deleted successfully"})
 }

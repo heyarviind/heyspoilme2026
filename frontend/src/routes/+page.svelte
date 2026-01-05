@@ -1,9 +1,10 @@
 <script lang="ts">
+	import { Footer } from '$lib/components';
 </script>
 
 <svelte:head>
 	<title>HeySpoilMe — Where Luxury Meets Connection</title>
-	<meta name="description" content="A private, consent-first platform for modern sugar dating in India. Verified profiles, complete privacy." />
+	<meta name="description" content="A private, members-only platform for accomplished adults seeking refined, meaningful connections. Verified profiles. Complete discretion." />
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
 	<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Outfit:wght@300;400;500&display=swap" rel="stylesheet">
@@ -23,10 +24,10 @@
 				<span class="line2">Meets Connection</span>
 			</h1>
 			
-			<p class="tagline">
-				India's most private platform for modern sugar dating. 
-				Verified profiles. Complete discretion.
-			</p>
+		<p class="tagline">
+			A private, members-only platform for accomplished adults seeking refined, meaningful connections.
+			Verified profiles. Complete discretion.
+		</p>
 
 			<div class="hero-cta">
 				<a href="/auth/login" class="btn-primary">Get Started</a>
@@ -55,8 +56,8 @@
 						<path d="M3.43067 4.93443C6.56932 5.16025 8.59312 2.00103 12.0266 2.00103C15.4086 1.93395 17.0635 4.97662 20.5307 4.97662C22.3893 14.3836 18.5226 20.2927 12.0549 21.9999C6.0595 20.583 1.5547 14.6133 3.43067 4.93443Z"/>
 					</svg>
 				</div>
-				<h3>Verified Profiles</h3>
-				<p>Every member goes through our verification process. Real people, real intentions.</p>
+			<h3>Verified Members</h3>
+			<p>Every profile is carefully reviewed to ensure authenticity, seriousness, and quality.</p>
 			</div>
 
 			<div class="feature-card">
@@ -67,8 +68,8 @@
 						<path d="M15.015 2.3866C16.0876 1.74691 17.0238 2.0047 17.5863 2.41532C17.8169 2.58369 17.9322 2.66787 18 2.66787C18.0678 2.66787 18.1831 2.58369 18.4137 2.41532C18.9762 2.0047 19.9124 1.74691 20.985 2.3866C22.3928 3.22613 22.7113 5.99576 19.4642 8.3324C18.8457 8.77746 18.5365 8.99998 18 8.99998C17.4635 8.99998 17.1543 8.77746 16.5358 8.3324C13.2887 5.99576 13.6072 3.22613 15.015 2.3866Z"/>
 					</svg>
 				</div>
-				<h3>Women Message First</h3>
-				<p>Ladies are in control. No unwanted messages, no harassment. Quality over quantity.</p>
+			<h3>Women Lead the Conversation</h3>
+			<p>Conversations begin with mutual interest. Thoughtful interactions over noise.</p>
 			</div>
 
 			<div class="feature-card">
@@ -77,8 +78,8 @@
 						<path d="M12 20.5C12 20.5 2 14.5 2 8.69444C2 5.82563 4.10526 3.5 7 3.5C8.5 3.5 10 4 12 6C14 4 15.5 3.5 17 3.5C19.8947 3.5 22 5.82563 22 8.69444C22 14.5 12 20.5 12 20.5Z"/>
 					</svg>
 				</div>
-				<h3>Genuine Matches</h3>
-				<p>Find meaningful connections based on compatibility, not just appearances.</p>
+			<h3>Meaningful Compatibility</h3>
+			<p>Connections based on lifestyle alignment, values, and intent — not just appearances.</p>
 			</div>
 
 			<div class="feature-card">
@@ -89,8 +90,8 @@
 						<path d="M19 9.2C19 13.9809 13.8979 17.0126 12.4054 17.7971C12.1485 17.9322 11.8515 17.9322 11.5946 17.7971C10.1021 17.0126 5 13.9809 5 9.2C5 5.22355 8.13401 2 12 2C15.866 2 19 5.22355 19 9.2Z"/>
 					</svg>
 				</div>
-				<h3>Meet Nearby</h3>
-				<p>Connect with verified members in your city. Distance-based matching for real meetups.</p>
+			<h3>Meet Nearby</h3>
+			<p>Discover like-minded, verified members in your city for real-world connections.</p>
 			</div>
 		</div>
 	</section>
@@ -105,27 +106,27 @@
 				</svg>
 			</div>
 			<span class="section-label">Trust & Safety</span>
-			<h2>Every Profile is Verified</h2>
-			<p>We take verification seriously. Each member undergoes identity checks to ensure you're connecting with real, genuine people.</p>
+		<h2>Every Profile is Carefully Verified</h2>
+		<p>We maintain high standards to ensure a trusted and respectful environment for all members.</p>
 			
-			<ul class="verification-list">
-				<li>
-					<span class="check">✓</span>
-					Photo verification to match profile pictures
-				</li>
-				<li>
-					<span class="check">✓</span>
-					Age verification (21+ only)
-				</li>
-				<li>
-					<span class="check">✓</span>
-					Income verification for Sugar Daddies
-				</li>
-				<li>
-					<span class="check">✓</span>
-					Manual review of every profile
-				</li>
-			</ul>
+		<ul class="verification-list">
+			<li>
+				<span class="check">✓</span>
+				Photo verification to ensure authenticity
+			</li>
+			<li>
+				<span class="check">✓</span>
+				Age verification (21+ only)
+			</li>
+			<li>
+				<span class="check">✓</span>
+				Financial credibility verification for select members
+			</li>
+			<li>
+				<span class="check">✓</span>
+				Manual review of every profile before approval
+			</li>
+		</ul>
 		</div>
 	</section>
 
@@ -133,9 +134,9 @@
 	<section class="privacy">
 		<div class="privacy-grid">
 			<div class="privacy-content">
-				<span class="section-label">Your Privacy Matters</span>
-				<h2>Complete Discretion, Always</h2>
-				<p>Your privacy is our top priority. We've built every feature with discretion in mind.</p>
+			<span class="section-label">Privacy Comes First</span>
+			<h2>Complete Discretion, Always</h2>
+			<p>Your privacy isn't a feature — it's a foundation.</p>
 			</div>
 			
 			<div class="privacy-features">
@@ -145,10 +146,10 @@
 							<path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
 						</svg>
 					</div>
-					<div>
-						<h4>Private Photos</h4>
-						<p>Control who sees your photos</p>
-					</div>
+				<div>
+					<h4>Private Photos</h4>
+					<p>Decide who can view your photos at any time</p>
+				</div>
 				</div>
 				
 				<div class="privacy-item">
@@ -157,10 +158,10 @@
 							<path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
 						</svg>
 					</div>
-					<div>
-						<h4>Browse Anonymously</h4>
-						<p>View profiles without being seen</p>
-					</div>
+				<div>
+					<h4>Anonymous Browsing</h4>
+					<p>Explore profiles without revealing your activity</p>
+				</div>
 				</div>
 				
 				<div class="privacy-item">
@@ -169,10 +170,10 @@
 							<path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
 						</svg>
 					</div>
-					<div>
-						<h4>Discreet Notifications</h4>
-						<p>No revealing app names or icons</p>
-					</div>
+				<div>
+					<h4>Discreet Notifications</h4>
+					<p>Neutral app presence with no revealing names or icons</p>
+				</div>
 				</div>
 				
 				<div class="privacy-item">
@@ -181,10 +182,10 @@
 							<path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
 						</svg>
 					</div>
-					<div>
-						<h4>Delete Anytime</h4>
-						<p>Full control over your data</p>
-					</div>
+				<div>
+					<h4>Full Control</h4>
+					<p>Delete your account and data anytime, instantly</p>
+				</div>
 				</div>
 			</div>
 		</div>
@@ -192,43 +193,12 @@
 
 	<!-- CTA Section -->
 	<section class="cta">
-		<h2>Ready to Find Your Match?</h2>
-		<p>Join thousands of verified members already on HeySpoilMe</p>
+		<h2>Ready to Connect?</h2>
+		<p>Join a growing community of verified, serious members across India.</p>
 		<a href="/auth/login" class="btn-primary">Create Free Account</a>
 	</section>
 
-	<!-- Footer -->
-	<footer class="footer">
-		<div class="footer-content">
-			<div class="footer-brand">
-				<img src="/img/logo.svg" alt="HeySpoilMe" class="logo" />
-				<p>India's premier sugar dating platform</p>
-			</div>
-			
-			<div class="footer-links">
-				<div class="footer-col">
-					<h5>Company</h5>
-					<a href="/about">About Us</a>
-					<a href="/contact">Contact</a>
-				</div>
-				<div class="footer-col">
-					<h5>Legal</h5>
-					<a href="/terms">Terms of Service</a>
-					<a href="/privacy">Privacy Policy</a>
-				</div>
-				<div class="footer-col">
-					<h5>Support</h5>
-					<a href="/help">Help Center</a>
-					<a href="/safety">Safety Tips</a>
-				</div>
-			</div>
-		</div>
-		
-		<div class="footer-bottom">
-			<span>© 2026 HeySpoilMe. All rights reserved.</span>
-			<span>21+ Adults Only</span>
-		</div>
-		</footer>
+	<Footer />
 </div>
 
 <style>
@@ -579,67 +549,6 @@
 		margin-bottom: 2rem;
 	}
 
-	/* Footer */
-	.footer {
-		padding: 4rem;
-		border-top: 1px solid rgba(255, 255, 255, 0.05);
-	}
-
-	.footer-content {
-		max-width: 1100px;
-		margin: 0 auto;
-		display: flex;
-		justify-content: space-between;
-		padding-bottom: 3rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-	}
-
-	.footer-brand p {
-		font-size: 0.85rem;
-		color: rgba(255, 255, 255, 0.4);
-		margin-top: 0.75rem;
-	}
-
-	.footer-links {
-		display: flex;
-		gap: 5rem;
-	}
-
-	.footer-col h5 {
-		font-size: 0.75rem;
-		font-weight: 500;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		color: rgba(255, 255, 255, 0.5);
-		margin-bottom: 1rem;
-	}
-
-	.footer-col a {
-		display: block;
-		font-size: 0.85rem;
-		color: rgba(255, 255, 255, 0.6);
-		text-decoration: none;
-		margin-bottom: 0.75rem;
-		transition: color 0.2s ease;
-	}
-
-	.footer-col a:hover {
-		color: #fff;
-	}
-
-	.footer-bottom {
-		max-width: 1100px;
-		margin: 0 auto;
-		display: flex;
-		justify-content: space-between;
-		padding-top: 2rem;
-	}
-
-	.footer-bottom span {
-		font-size: 0.75rem;
-		color: rgba(255, 255, 255, 0.3);
-	}
-
 	/* Mobile */
 	@media (max-width: 1024px) {
 		.features-grid {
@@ -678,26 +587,6 @@
 			grid-template-columns: 1fr;
 		}
 
-		.footer {
-			padding: 3rem 1.5rem;
-		}
-
-		.footer-content {
-			flex-direction: column;
-			gap: 3rem;
-		}
-
-		.footer-links {
-			flex-direction: column;
-			gap: 2rem;
-		}
-
-		.footer-bottom {
-			flex-direction: column;
-			gap: 0.5rem;
-			text-align: center;
-		}
-		
 		.scroll-hint {
 			display: none;
 		}

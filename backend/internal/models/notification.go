@@ -37,3 +37,4 @@ type NotificationWithDetails struct {
 	ParsedData NotificationData `json:"parsed_data"`
 }
 
+

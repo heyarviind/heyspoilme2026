@@ -1,17 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib/api';
-
-	interface Like {
-		id: string;
-		liker_id: string;
-		liked_id: string;
-		created_at: string;
-	}
+	import { notifications } from '$lib/stores/notifications';
+	import Header from '$lib/components/Header.svelte';
+	import Footer from '$lib/components/Footer.svelte';
 
 	interface Profile {
 		id: string;
 		user_id: string;
+		display_name: string;
 		age: number;
 		city: string;
 		state: string;
@@ -19,37 +16,30 @@
 		images: Array<{ url: string; is_primary: boolean }>;
 	}
 
+	interface LikeWithProfile {
+		like: {
+			id: string;
+			liker_id: string;
+			liked_id: string;
+			created_at: string;
+		};
+		profile: Profile | null;
+	}
+
 	let activeTab = $state<'received' | 'given'>('received');
-	let receivedLikes = $state<Like[]>([]);
-	let givenLikes = $state<Like[]>([]);
-	let profiles = $state<Map<string, Profile>>(new Map());
+	let receivedLikes = $state<LikeWithProfile[]>([]);
+	let givenLikes = $state<LikeWithProfile[]>([]);
 	let loading = $state(true);
 
 	async function loadLikes() {
 		loading = true;
 		try {
 			const [received, given] = await Promise.all([
-				api.getReceivedLikes() as Promise<{ likes: Like[]; total: number }>,
-				api.getGivenLikes() as Promise<{ likes: Like[]; total: number }>,
+				api.getReceivedLikes() as Promise<{ likes: LikeWithProfile[]; total: number }>,
+				api.getGivenLikes() as Promise<{ likes: LikeWithProfile[]; total: number }>,
 			]);
 			receivedLikes = received.likes || [];
 			givenLikes = given.likes || [];
-
-			// Load profiles for all likes
-			const userIds = new Set([
-				...receivedLikes.map(l => l.liker_id),
-				...givenLikes.map(l => l.liked_id),
-			]);
-
-			for (const userId of userIds) {
-				try {
-					const profile = await api.getProfile(userId) as Profile;
-					profiles.set(userId, profile);
-				} catch {
-					// Profile might not exist
-				}
-			}
-			profiles = profiles;
 		} catch (e) {
 			console.error('Failed to load likes:', e);
 		} finally {
@@ -57,15 +47,16 @@
 		}
 	}
 
-	function getProfileImage(userId: string): string {
-		const profile = profiles.get(userId);
-		if (!profile?.images?.length) return 'https://via.placeholder.com/200?text=?';
-		const primary = profile.images.find(img => img.is_primary);
-		return primary?.url || profile.images[0].url;
+	function getProfileImage(item: LikeWithProfile): string {
+		if (!item.profile?.images?.length) return 'https://via.placeholder.com/200?text=?';
+		const primary = item.profile.images.find(img => img.is_primary);
+		return primary?.url || item.profile.images[0].url;
 	}
 
 	function formatDate(dateStr: string): string {
+		if (!dateStr) return '';
 		const date = new Date(dateStr);
+		if (isNaN(date.getTime())) return '';
 		const now = new Date();
 		const diffMs = now.getTime() - date.getTime();
 		const diffHours = Math.floor(diffMs / 3600000);
@@ -77,6 +68,8 @@
 
 	onMount(() => {
 		loadLikes();
+		// Mark all like notifications as read
+		notifications.markAllAsRead();
 	});
 
 	let currentLikes = $derived(activeTab === 'received' ? receivedLikes : givenLikes);
@@ -90,17 +83,7 @@
 </svelte:head>
 
 <div class="likes-page">
-	<header class="header">
-		<a href="/browse" class="logo-link">
-			<img src="/img/logo.svg" alt="HeySpoilMe" class="logo" />
-		</a>
-		<nav class="nav">
-			<a href="/browse" class="nav-link">Browse</a>
-			<a href="/messages" class="nav-link">Messages</a>
-			<a href="/likes" class="nav-link active">Likes</a>
-			<a href="/profile" class="nav-link">Profile</a>
-		</nav>
-	</header>
+	<Header />
 
 	<main class="main">
 		<h1>Likes</h1>
@@ -139,30 +122,31 @@
 			</div>
 		{:else}
 			<div class="likes-grid">
-				{#each currentLikes as like}
-					{@const userId = activeTab === 'received' ? like.liker_id : like.liked_id}
-					{@const profile = profiles.get(userId)}
+				{#each currentLikes as item}
+					{@const userId = item.profile?.user_id || (activeTab === 'received' ? item.like.liker_id : item.like.liked_id)}
 					<a href="/profile/{userId}" class="like-card">
 						<div class="image-container">
 							<img 
-								src={getProfileImage(userId)} 
+								src={getProfileImage(item)} 
 								alt="Profile" 
 								class="profile-image" 
 							/>
-							{#if profile?.is_online}
+							{#if item.profile?.is_online}
 								<span class="online-badge"></span>
 							{/if}
 						</div>
 						<div class="card-content">
-							<span class="age">{profile?.age || '?'}</span>
-							<span class="location">{profile?.city || 'Unknown'}</span>
-							<span class="date">{formatDate(like.created_at)}</span>
+							<span class="name">{item.profile?.display_name || 'Unknown'}, {item.profile?.age || '?'}</span>
+							<span class="location">{item.profile?.city || 'Unknown'}</span>
+							<span class="date">{formatDate(item.like.created_at)}</span>
 						</div>
 					</a>
 				{/each}
 			</div>
 		{/if}
 	</main>
+
+	<Footer />
 </div>
 
 <style>
@@ -175,38 +159,6 @@
 
 	.likes-page {
 		min-height: 100vh;
-	}
-
-	.header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 1rem 2rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-	}
-
-	.logo-link {
-		text-decoration: none;
-	}
-
-	.logo {
-		height: 2.5rem;
-	}
-
-	.nav {
-		display: flex;
-		gap: 2rem;
-	}
-
-	.nav-link {
-		color: rgba(255, 255, 255, 0.6);
-		text-decoration: none;
-		font-size: 0.9rem;
-		font-weight: 500;
-	}
-
-	.nav-link:hover, .nav-link.active {
-		color: #fff;
 	}
 
 	.main {
@@ -346,8 +298,9 @@
 		gap: 0.25rem;
 	}
 
-	.age {
+	.name {
 		font-weight: 600;
+		font-size: 0.9rem;
 	}
 
 	.location {
@@ -361,11 +314,6 @@
 	}
 
 	@media (max-width: 768px) {
-		.header {
-			flex-direction: column;
-			gap: 1rem;
-		}
-
 		.likes-grid {
 			grid-template-columns: repeat(2, 1fr);
 		}

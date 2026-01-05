@@ -45,10 +45,39 @@ trap cleanup EXIT
 # Start Backend
 echo -e "${YELLOW}Starting Backend (Go)...${NC}"
 cd backend
+
+# Load .env file if it exists
+if [ -f ".env" ]; then
+    echo -e "${YELLOW}Loading environment from .env file...${NC}"
+    set -a
+    source .env
+    set +a
+fi
+
 export DATABASE_URL="postgres://postgres:postgres@localhost:5433/heyspoilme?sslmode=disable"
 export PORT=8080
 export FRONTEND_URL="http://localhost:3003"
 export JWT_SECRET="dev-secret-change-in-production"
+
+# Cloudflare R2 / S3 Configuration (loaded from .env or environment)
+export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-}"
+export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-}"
+export AWS_REGION="${AWS_REGION:-auto}"
+export S3_BUCKET="${S3_BUCKET:-}"
+export S3_ENDPOINT="${S3_ENDPOINT:-}"
+export S3_BASE_URL="${S3_BASE_URL:-}"
+
+# ZeptoMail Configuration (loaded from .env or environment)
+export ZEPTOMAIL_API_KEY="${ZEPTOMAIL_API_KEY:-}"
+export ZEPTOMAIL_FROM_EMAIL="${ZEPTOMAIL_FROM_EMAIL:-}"
+export ZEPTOMAIL_FROM_NAME="${ZEPTOMAIL_FROM_NAME:-}"
+
+# Google OAuth (loaded from .env or environment)
+export GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-}"
+export GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET:-}"
+
+export ADMIN_CODE_1="${ADMIN_CODE_1:-}"
+export ADMIN_CODE_2="${ADMIN_CODE_2:-}"
 
 # Download dependencies if go.sum doesn't exist
 if [ ! -f "go.sum" ]; then

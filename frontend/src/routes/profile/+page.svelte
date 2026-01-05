@@ -3,10 +3,16 @@
 	import { goto } from '$app/navigation';
 	import { api } from '$lib/api';
 	import { auth } from '$lib/stores/auth';
+	import { validateImage, compressImage, getWebPFilename } from '$lib/utils/image';
+	import Header from '$lib/components/Header.svelte';
+	import Footer from '$lib/components/Footer.svelte';
+
+	const MAX_IMAGES = 6;
 
 	interface Profile {
 		id: string;
 		user_id: string;
+		display_name: string;
 		gender: 'male' | 'female';
 		age: number;
 		bio: string;
@@ -30,8 +36,17 @@
 	let saving = $state(false);
 	let uploading = $state(false);
 	let showPricingPopup = $state(false);
+	let showDeleteConfirm = $state(false);
+	let deleteConfirmText = $state('');
+	let deleting = $state(false);
+	
+	let authState = $state<any>(null);
+	auth.subscribe(s => authState = s);
+	let isEmailVerified = $derived(authState?.user?.email_verified ?? false);
+	let isAuthReady = $derived(authState?.initialized && !authState?.loading);
 
 	// Edit form state
+	let editDisplayName = $state('');
 	let editAge = $state(25);
 	let editBio = $state('');
 	let editCity = $state('');
@@ -56,6 +71,7 @@
 			images = data.images || [];
 
 			if (profile) {
+				editDisplayName = profile.display_name;
 				editAge = profile.age;
 				editBio = profile.bio;
 				editCity = profile.city;
@@ -76,6 +92,7 @@
 		saving = true;
 		try {
 			const updates: any = {
+				display_name: editDisplayName,
 				age: editAge,
 				bio: editBio,
 				city: editCity,
@@ -99,34 +116,71 @@
 		const input = e.target as HTMLInputElement;
 		if (!input.files?.length) return;
 
+		// Check email verification
+		if (!isEmailVerified) {
+			alert('Please verify your email to upload photos');
+			input.value = '';
+			return;
+		}
+
 		const file = input.files[0];
-		if (!file.type.startsWith('image/')) {
-			alert('Please select an image file');
+		
+		// Check max images limit
+		if (images.length >= MAX_IMAGES) {
+			alert(`Maximum ${MAX_IMAGES} photos allowed. Delete one to add more.`);
+			input.value = '';
+			return;
+		}
+
+		// Validate image
+		const validation = validateImage(file);
+		if (!validation.valid) {
+			alert(validation.error);
+			input.value = '';
 			return;
 		}
 
 		uploading = true;
 		try {
-			// Get presigned URL
-			const urlData = await api.getPresignedUrl(file.name, file.type) as {
+			// Compress and convert to WebP
+			const { blob } = await compressImage(file, {
+				maxWidth: 1200,
+				maxHeight: 1600,
+				quality: 0.85,
+			});
+
+			const webpFilename = getWebPFilename(file.name);
+
+			// Get presigned URL for WebP
+			const urlData = await api.getPresignedUrl(webpFilename, 'image/webp') as {
 				upload_url: string;
-				key: string;
+				s3_key: string;
 				public_url: string;
 			};
 
-			// Upload to S3
-			await fetch(urlData.upload_url, {
+			// Upload compressed WebP to S3
+			const uploadResponse = await fetch(urlData.upload_url, {
 				method: 'PUT',
-				body: file,
-				headers: { 'Content-Type': file.type },
+				body: blob,
+				headers: { 'Content-Type': 'image/webp' },
 			});
 
+			if (!uploadResponse.ok) {
+				throw new Error(`Upload failed: ${uploadResponse.status}`);
+			}
+
 			// Add to profile
-			await api.addProfileImage(urlData.key, urlData.public_url, images.length === 0);
+			await api.addProfileImage(urlData.s3_key, urlData.public_url, images.length === 0);
 			await loadProfile();
-		} catch (e) {
+		} catch (e: any) {
 			console.error('Failed to upload image:', e);
-			alert('Failed to upload image');
+			if (e.message?.includes('too large')) {
+				alert('Image is too large. Please use a smaller image.');
+			} else if (e.message?.includes('network') || e.message?.includes('fetch')) {
+				alert('Network error. Please check your connection and try again.');
+			} else {
+				alert('Failed to upload image. Please try again.');
+			}
 		} finally {
 			uploading = false;
 			input.value = '';
@@ -148,6 +202,22 @@
 		goto('/auth/login');
 	}
 
+	async function deleteAccount() {
+		if (deleteConfirmText !== 'DELETE') return;
+		
+		deleting = true;
+		try {
+			await api.deleteAccount();
+			auth.logout();
+			goto('/');
+		} catch (e) {
+			console.error('Failed to delete account:', e);
+			alert('Failed to delete account. Please try again.');
+		} finally {
+			deleting = false;
+		}
+	}
+
 	onMount(() => {
 		loadProfile();
 	});
@@ -161,17 +231,7 @@
 </svelte:head>
 
 <div class="profile-page">
-	<header class="header">
-		<a href="/browse" class="logo-link">
-			<img src="/img/logo.svg" alt="HeySpoilMe" class="logo" />
-		</a>
-		<nav class="nav">
-			<a href="/browse" class="nav-link">Browse</a>
-			<a href="/messages" class="nav-link">Messages</a>
-			<a href="/likes" class="nav-link">Likes</a>
-			<a href="/profile" class="nav-link active">Profile</a>
-		</nav>
-	</header>
+	<Header />
 
 	<main class="main">
 		{#if loading}
@@ -180,6 +240,19 @@
 			</div>
 		{:else if profile}
 			<div class="profile-content">
+				{#if profile.gender === 'male' && !profile.is_verified}
+					<div class="upgrade-banner">
+						<img src="/img/crown.png" alt="Crown" class="banner-crown" />
+						<div class="banner-content">
+							<h2>Upgrade to Trusted Member</h2>
+							<p>Stand out as a verified, serious member</p>
+						</div>
+						<button class="upgrade-btn" onclick={() => showPricingPopup = true}>
+							Unlock Trusted Status
+						</button>
+					</div>
+				{/if}
+
 				<div class="photos-section">
 					<h2>Photos</h2>
 					<div class="photos-grid">
@@ -193,14 +266,16 @@
 							</div>
 						{/each}
 						{#if images.length < 6}
-							<label class="add-photo">
+							<label class="add-photo" class:disabled={isAuthReady && !isEmailVerified}>
 								<input 
 									type="file" 
 									accept="image/*" 
 									onchange={handleImageUpload}
-									disabled={uploading}
+									disabled={uploading || (isAuthReady && !isEmailVerified)}
 								/>
-								{#if uploading}
+								{#if isAuthReady && !isEmailVerified}
+									<span class="verify-hint">🔒 Verify email</span>
+								{:else if uploading}
 									<span class="uploading">Uploading...</span>
 								{:else}
 									<span>+ Add Photo</span>
@@ -220,6 +295,10 @@
 
 					{#if editing}
 						<div class="edit-form">
+					<div class="form-group">
+						<label for="edit-name">Display Name</label>
+						<input id="edit-name" type="text" bind:value={editDisplayName} maxlength="50" placeholder="Your display name" />
+					</div>
 					<div class="form-group">
 						<label for="edit-age">Age</label>
 						<input id="edit-age" type="number" bind:value={editAge} min="21" max="100" />
@@ -260,6 +339,10 @@
 					{:else}
 						<div class="profile-info">
 							<div class="info-row">
+								<span class="label">Display Name</span>
+								<span class="value">{profile.display_name}</span>
+							</div>
+							<div class="info-row">
 								<span class="label">Gender</span>
 								<span class="value">{profile.gender === 'male' ? 'Man' : 'Woman'}</span>
 							</div>
@@ -285,32 +368,68 @@
 					{/if}
 				</div>
 
-				{#if profile.gender === 'male'}
-					<div class="verification-section" class:verified={profile.is_verified}>
-						{#if profile.is_verified}
-							<div class="verified-status">
-								<span class="verified-badge">✓ VERIFIED SUGAR DADDY</span>
-								<p>Your profile is highlighted with premium styling</p>
-							</div>
-						{:else}
-							<div class="unverified-status">
-								<h2>Get Verified</h2>
-								<p>Stand out from the crowd with a verified badge</p>
-								<button class="verify-btn" onclick={() => showPricingPopup = true}>
-									Verify you are a Sugar Daddy
-								</button>
-							</div>
-						{/if}
+				{#if profile.gender === 'male' && profile.is_verified}
+					<div class="verification-section verified">
+						<div class="verified-status">
+							<span class="verified-badge">✓ TRUSTED MEMBER</span>
+							<p>Your profile is highlighted with premium styling</p>
+						</div>
 					</div>
 				{/if}
 
 				<div class="account-section">
 					<h2>Account</h2>
 					<button class="logout-btn" onclick={logout}>Sign Out</button>
+					<button class="delete-account-btn" onclick={() => showDeleteConfirm = true}>Delete Account</button>
 				</div>
 			</div>
 		{/if}
 	</main>
+
+	<Footer />
+
+	{#if showDeleteConfirm}
+		<div class="popup-overlay" onclick={() => showDeleteConfirm = false} role="button" tabindex="0" onkeypress={(e) => e.key === 'Enter' && (showDeleteConfirm = false)}>
+			<div class="popup-content delete-popup" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+				<button class="popup-close" onclick={() => showDeleteConfirm = false}>×</button>
+				
+				<div class="popup-header">
+					<span class="warning-icon">⚠️</span>
+					<h2>Delete Account</h2>
+				</div>
+
+				<div class="delete-warning">
+					<p><strong>This action is permanent and cannot be undone.</strong></p>
+					<p>All your data will be deleted including:</p>
+					<ul>
+						<li>Your profile and photos</li>
+						<li>All messages and conversations</li>
+						<li>Likes given and received</li>
+						<li>Notifications</li>
+					</ul>
+				</div>
+
+				<div class="confirm-input">
+					<label for="delete-confirm">Type <strong>DELETE</strong> to confirm:</label>
+					<input 
+						id="delete-confirm"
+						type="text" 
+						bind:value={deleteConfirmText}
+						placeholder="DELETE"
+						autocomplete="off"
+					/>
+				</div>
+
+				<button 
+					class="confirm-delete-btn" 
+					onclick={deleteAccount}
+					disabled={deleteConfirmText !== 'DELETE' || deleting}
+				>
+					{deleting ? 'Deleting...' : 'Permanently Delete Account'}
+				</button>
+			</div>
+		</div>
+	{/if}
 
 	{#if showPricingPopup}
 		<div class="popup-overlay" onclick={() => showPricingPopup = false} role="button" tabindex="0" onkeypress={(e) => e.key === 'Enter' && (showPricingPopup = false)}>
@@ -318,8 +437,8 @@
 				<button class="popup-close" onclick={() => showPricingPopup = false}>×</button>
 				
 				<div class="popup-header">
-					<span class="crown">👑</span>
-					<h2>Become a Verified Sugar Daddy</h2>
+					<img src="/img/crown.png" alt="Crown" class="crown-img" />
+					<h2>Upgrade to Trusted Member</h2>
 				</div>
 
 				<div class="pricing-card">
@@ -330,31 +449,33 @@
 					</div>
 				</div>
 
+				<p class="pricing-tagline">Stand out as a verified, serious member in a private community built on trust and discretion.</p>
+
 				<ul class="benefits">
 					<li>
 						<span class="check">✓</span>
-						<span>Gold verified badge on your profile</span>
+						<span>Trusted badge that signals credibility</span>
 					</li>
 					<li>
 						<span class="check">✓</span>
-						<span>Premium highlighted profile in browse</span>
+						<span>Priority placement in member discovery</span>
 					</li>
 					<li>
 						<span class="check">✓</span>
-						<span>Stand out from other profiles</span>
+						<span>Increased visibility to verified profiles</span>
 					</li>
 					<li>
 						<span class="check">✓</span>
-						<span>Get more attention from women</span>
+						<span>Unlock message requests & replies</span>
 					</li>
 					<li>
 						<span class="check">✓</span>
-						<span>Priority visibility in search results</span>
+						<span>Designed for members who value quality over volume</span>
 					</li>
 				</ul>
 
-				<button class="subscribe-btn">
-					Subscribe Now
+				<button class="subscribe-btn" onclick={() => goto('/profile/verify')}>
+					Unlock Trusted Status
 				</button>
 
 				<p class="terms">
@@ -375,38 +496,6 @@
 
 	.profile-page {
 		min-height: 100vh;
-	}
-
-	.header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 1rem 2rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-	}
-
-	.logo-link {
-		text-decoration: none;
-	}
-
-	.logo {
-		height: 2.5rem;
-	}
-
-	.nav {
-		display: flex;
-		gap: 2rem;
-	}
-
-	.nav-link {
-		color: rgba(255, 255, 255, 0.6);
-		text-decoration: none;
-		font-size: 0.9rem;
-		font-weight: 500;
-	}
-
-	.nav-link:hover, .nav-link.active {
-		color: #fff;
 	}
 
 	.main {
@@ -439,6 +528,69 @@
 		display: flex;
 		flex-direction: column;
 		gap: 2rem;
+	}
+
+	/* Upgrade Banner - Top of profile for unverified males */
+	.upgrade-banner {
+		display: flex;
+		align-items: center;
+		gap: 1.25rem;
+		padding: 1.25rem 1.5rem;
+		background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(251, 191, 36, 0.05) 100%);
+		border: 1px solid rgba(251, 191, 36, 0.4);
+	}
+
+	.banner-crown {
+		width: 48px;
+		height: 48px;
+		object-fit: contain;
+		flex-shrink: 0;
+	}
+
+	.banner-content {
+		flex: 1;
+	}
+
+	.banner-content h2 {
+		font-size: 1.1rem;
+		margin: 0 0 0.25rem;
+		color: #fbbf24;
+	}
+
+	.banner-content p {
+		font-size: 0.85rem;
+		color: rgba(255, 255, 255, 0.7);
+		margin: 0;
+	}
+
+	.upgrade-btn {
+		background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+		color: #000;
+		border: none;
+		padding: 0.75rem 1.5rem;
+		font-family: 'Montserrat', sans-serif;
+		font-size: 0.85rem;
+		font-weight: 600;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: transform 0.2s ease, box-shadow 0.2s ease;
+	}
+
+	.upgrade-btn:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3);
+	}
+
+	@media (max-width: 600px) {
+		.upgrade-banner {
+			flex-direction: column;
+			text-align: center;
+			gap: 1rem;
+		}
+
+		.upgrade-btn {
+			width: 100%;
+		}
 	}
 
 	.photos-section, .info-section, .account-section {
@@ -518,12 +670,23 @@
 		transition: border-color 0.2s ease;
 	}
 
-	.add-photo:hover {
+	.add-photo:hover:not(.disabled) {
 		border-color: rgba(255, 255, 255, 0.4);
+	}
+
+	.add-photo.disabled {
+		cursor: not-allowed;
+		border-color: rgba(255, 56, 92, 0.3);
+		background: rgba(255, 56, 92, 0.05);
 	}
 
 	.add-photo input {
 		display: none;
+	}
+
+	.verify-hint {
+		font-size: 0.75rem;
+		color: #FF385C;
 	}
 
 	.section-header {
@@ -648,6 +811,114 @@
 		background: rgba(255, 100, 100, 0.1);
 	}
 
+	.delete-account-btn {
+		width: 100%;
+		padding: 0.75rem;
+		margin-top: 0.75rem;
+		background: transparent;
+		border: 1px solid rgba(255, 50, 50, 0.3);
+		border-radius: 0;
+		color: #ff4444;
+		font-family: 'Montserrat', sans-serif;
+		font-size: 0.9rem;
+		cursor: pointer;
+	}
+
+	.delete-account-btn:hover {
+		background: rgba(255, 50, 50, 0.1);
+	}
+
+	.delete-popup {
+		max-width: 400px;
+	}
+
+	.warning-icon {
+		font-size: 2.5rem;
+		display: block;
+		margin-bottom: 0.75rem;
+	}
+
+	.delete-popup h2 {
+		color: #ff4444;
+		margin: 0;
+	}
+
+	.delete-warning {
+		background: rgba(255, 50, 50, 0.1);
+		border: 1px solid rgba(255, 50, 50, 0.2);
+		padding: 1rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.delete-warning p {
+		color: rgba(255, 255, 255, 0.8);
+		margin: 0 0 0.5rem 0;
+		font-size: 0.9rem;
+	}
+
+	.delete-warning ul {
+		margin: 0.5rem 0 0 0;
+		padding-left: 1.25rem;
+		color: rgba(255, 255, 255, 0.6);
+		font-size: 0.85rem;
+	}
+
+	.delete-warning li {
+		margin: 0.25rem 0;
+	}
+
+	.confirm-input {
+		margin-bottom: 1.5rem;
+	}
+
+	.confirm-input label {
+		display: block;
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.85rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.confirm-input input {
+		width: 100%;
+		padding: 0.75rem;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 0;
+		color: #fff;
+		font-family: 'Montserrat', sans-serif;
+		font-size: 1rem;
+		text-transform: uppercase;
+		letter-spacing: 1px;
+	}
+
+	.confirm-input input:focus {
+		outline: none;
+		border-color: #ff4444;
+	}
+
+	.confirm-delete-btn {
+		width: 100%;
+		padding: 1rem;
+		background: #ff4444;
+		border: none;
+		border-radius: 0;
+		color: #fff;
+		font-family: 'Montserrat', sans-serif;
+		font-weight: 600;
+		font-size: 0.9rem;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.confirm-delete-btn:disabled {
+		background: rgba(255, 68, 68, 0.3);
+		cursor: not-allowed;
+	}
+
+	.confirm-delete-btn:not(:disabled):hover {
+		background: #ff2222;
+	}
+
 	/* Verification Section */
 	.verification-section {
 		background: rgba(255, 255, 255, 0.03);
@@ -760,10 +1031,12 @@
 		margin-bottom: 2rem;
 	}
 
-	.crown {
-		font-size: 3rem;
+	.crown-img {
+		width: 64px;
+		height: 64px;
+		object-fit: contain;
 		display: block;
-		margin-bottom: 1rem;
+		margin: 0 auto 1rem;
 	}
 
 	.popup-header h2 {
@@ -781,7 +1054,16 @@
 		border: 1px solid rgba(251, 191, 36, 0.3);
 		padding: 1.5rem;
 		text-align: center;
-		margin-bottom: 1.5rem;
+		margin-bottom: 1rem;
+	}
+
+	.pricing-tagline {
+		text-align: center;
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.9rem;
+		line-height: 1.6;
+		margin: 0 0 1.5rem;
+		padding: 0 0.5rem;
 	}
 
 	.price {
@@ -863,11 +1145,6 @@
 	}
 
 	@media (max-width: 768px) {
-		.header {
-			flex-direction: column;
-			gap: 1rem;
-		}
-
 		.photos-grid {
 			grid-template-columns: repeat(2, 1fr);
 		}

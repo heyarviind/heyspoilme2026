@@ -7,3 +7,4 @@ CREATE TABLE user_presence (
 
 CREATE INDEX idx_user_presence_online ON user_presence(is_online) WHERE is_online = true;
 
+

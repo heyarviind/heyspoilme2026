@@ -11,6 +11,7 @@ type Message struct {
 	ConversationID uuid.UUID  `json:"conversation_id" db:"conversation_id"`
 	SenderID       uuid.UUID  `json:"sender_id" db:"sender_id"`
 	Content        string     `json:"content" db:"content"`
+	ImageURL       *string    `json:"image_url,omitempty" db:"image_url"`
 	ReadAt         *time.Time `json:"read_at,omitempty" db:"read_at"`
 	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
 }
@@ -22,7 +23,8 @@ type MessageWithSender struct {
 }
 
 type SendMessageRequest struct {
-	Content string `json:"content" binding:"required,max=2000"`
+	Content  string  `json:"content" binding:"max=2000"`
+	ImageURL *string `json:"image_url,omitempty"`
 }
 
 type WSMessageType string
@@ -49,4 +51,16 @@ type WSTypingPayload struct {
 type WSPresencePayload struct {
 	UserID   uuid.UUID `json:"user_id"`
 	IsOnline bool      `json:"is_online"`
+}
+
+// MessageNotificationInfo contains info needed to send email notification for unread message
+type MessageNotificationInfo struct {
+	MessageID      uuid.UUID
+	ConversationID uuid.UUID
+	SenderID       uuid.UUID
+	SenderName     string
+	Content        string
+	CreatedAt      time.Time
+	RecipientID    uuid.UUID
+	RecipientEmail string
 }

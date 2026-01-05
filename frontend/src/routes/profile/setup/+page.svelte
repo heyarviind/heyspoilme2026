@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { api } from '$lib/api';
 	import { auth } from '$lib/stores/auth';
+	import { generateDisplayName } from '$lib/utils';
 
 	let step = $state(1);
 	let loading = $state(false);
@@ -9,6 +10,7 @@
 
 	// Profile data
 	let gender = $state<'male' | 'female' | ''>('');
+	let displayName = $state('');
 	let age = $state(25);
 	let bio = $state('');
 	let salaryRange = $state('');
@@ -16,6 +18,19 @@
 	let state_ = $state('');
 	let latitude = $state(0);
 	let longitude = $state(0);
+
+	// Generate a display name when gender is selected
+	function selectGender(selectedGender: 'male' | 'female') {
+		gender = selectedGender;
+		displayName = generateDisplayName(selectedGender);
+	}
+
+	// Regenerate name with same gender
+	function regenerateName() {
+		if (gender) {
+			displayName = generateDisplayName(gender);
+		}
+	}
 
 	const salaryOptions = [
 		'5-10 LPA',
@@ -92,6 +107,7 @@
 
 		try {
 			const profileData: any = {
+				display_name: displayName,
 				gender,
 				age,
 				bio: bio.trim(),
@@ -158,7 +174,7 @@
 					<button 
 						class="gender-btn" 
 						class:selected={gender === 'male'}
-						onclick={() => gender = 'male'}
+						onclick={() => selectGender('male')}
 					>
 						<span class="icon">👨</span>
 						<span>I am a Man</span>
@@ -166,12 +182,25 @@
 					<button 
 						class="gender-btn" 
 						class:selected={gender === 'female'}
-						onclick={() => gender = 'female'}
+						onclick={() => selectGender('female')}
 					>
 						<span class="icon">👩</span>
 						<span>I am a Woman</span>
 					</button>
 				</div>
+
+				{#if displayName}
+					<div class="generated-name">
+						<p class="name-label">Your display name:</p>
+						<div class="name-display">
+							<span class="name-text">{displayName}</span>
+							<button class="regenerate-btn" onclick={regenerateName} type="button">
+								🎲
+							</button>
+						</div>
+						<p class="name-hint">You can change this later in settings</p>
+					</div>
+				{/if}
 			</div>
 		{:else if step === 2}
 			<div class="step">
@@ -370,6 +399,58 @@
 
 	.gender-btn .icon {
 		font-size: 2rem;
+	}
+
+	.generated-name {
+		margin-top: 2rem;
+		padding: 1.5rem;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.name-label {
+		margin: 0 0 0.75rem 0;
+		font-size: 0.85rem;
+		color: rgba(255, 255, 255, 0.6);
+	}
+
+	.name-display {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.75rem;
+	}
+
+	.name-text {
+		font-family: 'Playfair Display', serif;
+		font-size: 1.5rem;
+		font-weight: 600;
+		color: #fff;
+	}
+
+	.regenerate-btn {
+		width: 40px;
+		height: 40px;
+		background: rgba(255, 255, 255, 0.1);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 0;
+		font-size: 1.2rem;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.regenerate-btn:hover {
+		background: rgba(255, 255, 255, 0.15);
+		transform: rotate(180deg);
+	}
+
+	.name-hint {
+		margin: 0.75rem 0 0 0;
+		font-size: 0.75rem;
+		color: rgba(255, 255, 255, 0.4);
 	}
 
 	.form-group {

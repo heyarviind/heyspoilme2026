@@ -51,20 +51,22 @@ func (ns *NullString) UnmarshalJSON(data []byte) error {
 }
 
 type Profile struct {
-	ID          uuid.UUID  `json:"id" db:"id"`
-	UserID      uuid.UUID  `json:"user_id" db:"user_id"`
-	Gender      Gender     `json:"gender" db:"gender"`
-	Age         int        `json:"age" db:"age"`
-	Bio         string     `json:"bio" db:"bio"`
-	SalaryRange NullString `json:"salary_range,omitempty" db:"salary_range"`
-	City        string     `json:"city" db:"city"`
-	State       string     `json:"state" db:"state"`
-	Latitude    float64    `json:"latitude" db:"latitude"`
-	Longitude   float64    `json:"longitude" db:"longitude"`
-	IsComplete  bool       `json:"is_complete" db:"is_complete"`
-	IsVerified  bool       `json:"is_verified" db:"is_verified"`
-	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
+	ID           uuid.UUID  `json:"id" db:"id"`
+	UserID       uuid.UUID  `json:"user_id" db:"user_id"`
+	DisplayName  string     `json:"display_name" db:"display_name"`
+	Gender       Gender     `json:"gender" db:"gender"`
+	Age          int        `json:"age" db:"age"`
+	Bio          string     `json:"bio" db:"bio"`
+	SalaryRange  NullString `json:"salary_range,omitempty" db:"salary_range"`
+	City         string     `json:"city" db:"city"`
+	State        string     `json:"state" db:"state"`
+	Latitude     float64    `json:"latitude" db:"latitude"`
+	Longitude    float64    `json:"longitude" db:"longitude"`
+	IsComplete   bool       `json:"is_complete" db:"is_complete"`
+	IsVerified   bool       `json:"is_verified" db:"is_verified"`
+	ProfileScore float64    `json:"profile_score" db:"profile_score"`
+	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 type ProfileImage struct {
@@ -79,14 +81,17 @@ type ProfileImage struct {
 
 type ProfileWithImages struct {
 	Profile
-	Images   []ProfileImage `json:"images"`
-	IsOnline bool           `json:"is_online"`
-	LastSeen *time.Time     `json:"last_seen,omitempty"`
-	Distance *float64       `json:"distance_km,omitempty"`
-	IsLiked  bool           `json:"is_liked"`
+	Images       []ProfileImage `json:"images"`
+	IsOnline     bool           `json:"is_online"`
+	LastSeen     *time.Time     `json:"last_seen,omitempty"`
+	Distance     *float64       `json:"distance_km,omitempty"`
+	IsLiked      bool           `json:"is_liked"`
+	WealthStatus string         `json:"wealth_status,omitempty"`
+	HasLikedMe   bool           `json:"has_liked_me"`
 }
 
 type CreateProfileRequest struct {
+	DisplayName string  `json:"display_name" binding:"required,min=2,max=50"`
 	Gender      Gender  `json:"gender" binding:"required"`
 	Age         int     `json:"age" binding:"required,gte=21,lte=100"`
 	Bio         string  `json:"bio" binding:"required,max=500"`
@@ -98,6 +103,7 @@ type CreateProfileRequest struct {
 }
 
 type UpdateProfileRequest struct {
+	DisplayName *string  `json:"display_name,omitempty"`
 	Age         *int     `json:"age,omitempty"`
 	Bio         *string  `json:"bio,omitempty"`
 	SalaryRange *string  `json:"salary_range,omitempty"`

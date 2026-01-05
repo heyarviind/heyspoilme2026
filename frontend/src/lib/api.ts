@@ -30,6 +30,15 @@ async function fetchAPI<T>(endpoint: string, options: FetchOptions = {}): Promis
 	const response = await fetch(`${API_BASE}${endpoint}`, config);
 	
 	if (!response.ok) {
+		if (response.status === 401) {
+			// Don't redirect for auth endpoints (login/signup failures should show error, not redirect)
+			const isAuthEndpoint = endpoint.startsWith('/api/auth/signin') || endpoint.startsWith('/api/auth/signup');
+			if (!isAuthEndpoint && typeof window !== 'undefined') {
+				localStorage.removeItem('token');
+				window.location.href = '/auth/login';
+				throw new Error('Unauthorized');
+			}
+		}
 		const error = await response.json().catch(() => ({ error: 'Request failed' }));
 		throw new Error(error.error || error.message || 'Request failed');
 	}
@@ -46,9 +55,13 @@ export const api = {
 	getCurrentUser: () => fetchAPI('/api/auth/me'),
 	logout: () => fetchAPI('/api/auth/logout', { method: 'POST' }),
 	getGoogleAuthUrl: () => `${API_BASE}/api/auth/google`,
+	verifyEmail: (token: string) => fetchAPI(`/api/auth/verify-email?token=${token}`),
+	resendVerificationEmail: () => fetchAPI('/api/auth/resend-verification', { method: 'POST' }),
+	deleteAccount: () => fetchAPI('/api/auth/account', { method: 'DELETE' }),
 
 	// Profile
 	createProfile: (data: {
+		display_name: string;
 		gender: string;
 		age: number;
 		bio: string;
@@ -88,18 +101,31 @@ export const api = {
 
 	// Conversations
 	getConversations: () => fetchAPI('/api/conversations'),
+	getInbox: () => fetchAPI('/api/inbox'), // Returns locked message support for males
 	createConversation: (recipientId: string, message: string) => 
 		fetchAPI('/api/conversations', { method: 'POST', body: { recipient_id: recipientId, message } }),
 	getMessages: (conversationId: string, limit = 50, offset = 0) => 
 		fetchAPI(`/api/conversations/${conversationId}/messages?limit=${limit}&offset=${offset}`),
-	sendMessage: (conversationId: string, content: string) =>
-		fetchAPI(`/api/conversations/${conversationId}/messages`, { method: 'POST', body: { content } }),
+	sendMessage: (conversationId: string, content: string, imageUrl?: string) =>
+		fetchAPI(`/api/conversations/${conversationId}/messages`, { method: 'POST', body: { content, image_url: imageUrl } }),
+	getUnreadMessageCount: () => fetchAPI('/api/messages/unread-count'),
+	getChatImagePresignedUrl: (conversationId: string, fileExt: string, contentType: string) =>
+		fetchAPI('/api/upload/chat-image-url', { method: 'POST', body: { conversation_id: conversationId, file_ext: fileExt, content_type: contentType } }),
 
 	// Notifications
 	getNotifications: (limit = 20, offset = 0) => fetchAPI(`/api/notifications?limit=${limit}&offset=${offset}`),
 	markNotificationAsRead: (id: string) => fetchAPI(`/api/notifications/${id}/read`, { method: 'PUT' }),
 	markAllNotificationsAsRead: () => fetchAPI('/api/notifications/read-all', { method: 'PUT' }),
 	getUnreadNotificationCount: () => fetchAPI('/api/notifications/unread-count'),
+
+	// Identity Verification
+	getVerificationCode: () => fetchAPI('/api/verification/code'),
+	submitVerification: (documentType: string, documentUrl: string, videoUrl: string, code: string) =>
+		fetchAPI(`/api/verification/submit?code=${code}`, { 
+			method: 'POST', 
+			body: { document_type: documentType, document_url: documentUrl, video_url: videoUrl } 
+		}),
+	getVerificationStatus: () => fetchAPI('/api/verification/status'),
 };
 
 export default api;

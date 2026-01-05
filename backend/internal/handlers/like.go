@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -51,6 +52,14 @@ func (h *LikeHandler) LikeProfile(c *gin.Context) {
 
 	like, err := h.likeService.LikeProfile(userID, likedID, likerName, likerImage)
 	if err != nil {
+		if errors.Is(err, services.ErrNotVerified) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":           "person_verification_required",
+				"message":         "You must complete identity verification to like profiles",
+				"person_verified": false,
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

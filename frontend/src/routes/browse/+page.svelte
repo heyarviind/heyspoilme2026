@@ -4,10 +4,14 @@
 	import { page as pageStore } from '$app/stores';
 	import { api } from '$lib/api';
 	import { auth } from '$lib/stores/auth';
+	import Header from '$lib/components/Header.svelte';
+	import Footer from '$lib/components/Footer.svelte';
+	import HeartIcon from '$lib/components/HeartIcon.svelte';
 
 	interface Profile {
 		id: string;
 		user_id: string;
+		display_name: string;
 		gender: 'male' | 'female';
 		age: number;
 		bio: string;
@@ -42,6 +46,25 @@
 			userGender = s.profile.gender;
 		}
 	});
+
+	let isEmailVerified = $derived(authState?.user?.email_verified ?? false);
+	let isAuthReady = $derived(authState?.initialized && !authState?.loading);
+	let resending = $state(false);
+	let resent = $state(false);
+
+	async function resendVerification() {
+		if (resending || resent) return;
+		resending = true;
+		try {
+			await api.resendVerificationEmail();
+			resent = true;
+			setTimeout(() => { resent = false; }, 60000);
+		} catch (e) {
+			console.error('Failed to resend verification:', e);
+		} finally {
+			resending = false;
+		}
+	}
 
 	// Read filters from URL on page load
 	function initFiltersFromUrl() {
@@ -94,6 +117,13 @@
 	}
 
 	async function loadProfiles() {
+		if (!isEmailVerified) {
+			// Show message about verification requirement
+			loading = false;
+			profiles = [];
+			return;
+		}
+		
 		loading = true;
 		try {
 			const params: Record<string, any> = { page, limit: 12 };
@@ -113,14 +143,23 @@
 			const data = await api.listProfiles(params) as { profiles: Profile[]; total: number };
 			profiles = data.profiles || [];
 			total = data.total;
-		} catch (e) {
+		} catch (e: any) {
 			console.error('Failed to load profiles:', e);
+			// Handle email verification error from backend
+			if (e.message?.includes('email_not_verified') || e.message?.includes('verify your email')) {
+				profiles = [];
+			}
 		} finally {
 			loading = false;
 		}
 	}
 
 	async function toggleLike(profile: Profile) {
+		if (!isEmailVerified) {
+			alert('Please verify your email to like profiles');
+			return;
+		}
+		
 		try {
 			if (profile.is_liked) {
 				await api.unlikeProfile(profile.user_id);
@@ -128,8 +167,11 @@
 				await api.likeProfile(profile.user_id);
 			}
 			profile.is_liked = !profile.is_liked;
-		} catch (e) {
+		} catch (e: any) {
 			console.error('Failed to toggle like:', e);
+			if (e.message?.includes('email_not_verified') || e.message?.includes('verify your email')) {
+				alert('Please verify your email to like profiles');
+			}
 		}
 	}
 
@@ -163,8 +205,14 @@
 	}
 
 	onMount(() => {
-		initFiltersFromUrl();
-		loadProfiles();
+		// Wait for auth state to be ready
+		const unsub = auth.subscribe(s => {
+			if (s.initialized) {
+				initFiltersFromUrl();
+				loadProfiles();
+				unsub();
+			}
+		});
 	});
 </script>
 
@@ -176,17 +224,7 @@
 </svelte:head>
 
 <div class="browse-page">
-	<header class="header">
-		<a href="/browse" class="logo-link">
-			<img src="/img/logo.svg" alt="HeySpoilMe" class="logo" />
-		</a>
-		<nav class="nav">
-			<a href="/browse" class="nav-link active">Browse</a>
-			<a href="/messages" class="nav-link">Messages</a>
-			<a href="/likes" class="nav-link">Likes</a>
-			<a href="/profile" class="nav-link">Profile</a>
-		</nav>
-	</header>
+	<Header />
 
 	<main class="main">
 		<div class="filters">
@@ -228,7 +266,29 @@
 			</label>
 		</div>
 
-		{#if loading}
+		{#if !isAuthReady}
+			<div class="loading">
+				<div class="spinner"></div>
+				<p>Loading...</p>
+			</div>
+		{:else if !isEmailVerified}
+			<div class="verification-required">
+				<div class="verification-box">
+					<span class="icon">🔒</span>
+					<h2>Verify Your Email</h2>
+					<p>Please verify your email address to browse profiles. Check your inbox for the verification link.</p>
+					<button class="resend-link" onclick={resendVerification} disabled={resending || resent}>
+						{#if resending}
+							Sending...
+						{:else if resent}
+							Email Sent ✓
+						{:else}
+							Resend verification email
+						{/if}
+					</button>
+				</div>
+			</div>
+		{:else if loading}
 			<div class="loading">
 				<div class="spinner"></div>
 				<p>Finding people near you...</p>
@@ -241,12 +301,12 @@
 		{:else}
 			<div class="profiles-grid">
 				{#each profiles as profile}
-					<div class="profile-card" class:verified={profile.is_verified && profile.gender === 'male'}>
+					<div class="profile-card" class:verified={profile.is_verified}>
 						<a href="/profile/{profile.user_id}" class="card-link">
 							<div class="image-container">
 								<img src={getPrimaryImage(profile)} alt="{profile.age}" class="profile-image" />
-								{#if profile.is_verified && profile.gender === 'male'}
-									<span class="verified-badge">✓ VERIFIED</span>
+								{#if !profile.is_verified}
+									<span class="not-verified-badge">NOT VERIFIED</span>
 								{/if}
 								{#if profile.is_online}
 									<span class="online-badge"></span>
@@ -257,7 +317,14 @@
 							</div>
 							<div class="card-content">
 								<div class="card-header">
-									<span class="age">{profile.age}</span>
+									<span class="name">
+										{profile.display_name}, {profile.age}
+										{#if profile.is_verified}
+											<svg class="verified-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+												<path fill-rule="evenodd" clip-rule="evenodd" d="M12 1.25C11.4388 1.25 10.9816 1.48611 10.5656 1.80358C10.1759 2.10089 9.74606 2.53075 9.24319 3.03367L9.20782 3.06904C8.69316 3.5837 8.24449 3.78626 7.55208 3.78626C7.4653 3.78626 7.35579 3.78318 7.23212 3.7797C6.91509 3.77078 6.50497 3.75924 6.14615 3.79027C5.62128 3.83566 4.96532 3.97929 4.46745 4.48134C3.9734 4.97955 3.83327 5.63282 3.78923 6.15439C3.75922 6.50995 3.77075 6.91701 3.77966 7.23178L3.77966 7.23181C3.78317 7.35581 3.78628 7.46549 3.78628 7.55206C3.78628 8.24448 3.58371 8.69315 3.06902 9.20784L3.03367 9.24319C2.53075 9.74606 2.10089 10.1759 1.80358 10.5655C1.48612 10.9816 1.25001 11.4388 1.25 12C1.25001 12.5611 1.48613 13.0183 1.80358 13.4344C2.10095 13.8242 2.53091 14.2541 3.03395 14.7571L3.06906 14.7922C3.40272 15.1258 3.56011 15.3422 3.64932 15.5464C3.73619 15.7453 3.78628 15.9971 3.78628 16.4479C3.78628 16.5347 3.7832 16.6442 3.77972 16.7679C3.7708 17.0849 3.75926 17.495 3.79029 17.8539C3.83569 18.3787 3.97933 19.0347 4.48139 19.5326C4.97961 20.0266 5.63287 20.1667 6.15443 20.2107C6.50997 20.2408 6.91703 20.2292 7.23179 20.2203C7.35581 20.2168 7.4655 20.2137 7.55206 20.2137C7.99328 20.2137 8.24126 20.2581 8.43645 20.3386C8.63147 20.4191 8.84006 20.5632 9.15424 20.8774C9.22129 20.9444 9.30963 21.0391 9.41153 21.1483L9.41176 21.1486L9.41179 21.1486L9.4118 21.1486C9.64176 21.3951 9.94071 21.7155 10.22 21.9596C10.6437 22.33 11.2516 22.75 12 22.75C12.7485 22.75 13.3563 22.33 13.7801 21.9596C14.0593 21.7155 14.3583 21.3951 14.5882 21.1486C14.6902 21.0392 14.7787 20.9445 14.8458 20.8773C15.1599 20.5632 15.3685 20.4191 15.5635 20.3386C15.7587 20.2581 16.0067 20.2137 16.4479 20.2137C16.5345 20.2137 16.6442 20.2168 16.7682 20.2203C17.083 20.2292 17.49 20.2408 17.8456 20.2107C18.3671 20.1667 19.0204 20.0266 19.5186 19.5326C20.0207 19.0347 20.1643 18.3787 20.2097 17.8539C20.2407 17.495 20.2292 17.0849 20.2203 16.7679L20.2203 16.7676C20.2168 16.644 20.2137 16.5346 20.2137 16.4479C20.2137 15.9971 20.2638 15.7453 20.3507 15.5464C20.4399 15.3422 20.5973 15.1258 20.9309 14.7922L20.9661 14.7571C21.4691 14.2541 21.8991 13.8242 22.1964 13.4344C22.5139 13.0183 22.75 12.5611 22.75 12C22.75 11.4388 22.5139 10.9816 22.1964 10.5655C21.8991 10.1759 21.4693 9.74607 20.9664 9.24322L20.931 9.20784C20.5973 8.87416 20.4399 8.65779 20.3507 8.45354C20.2638 8.25468 20.2137 8.00288 20.2137 7.55206C20.2137 7.46534 20.2168 7.35593 20.2203 7.23236L20.2203 7.2321C20.2292 6.91507 20.2407 6.50496 20.2097 6.14615C20.1643 5.62129 20.0207 4.96533 19.5187 4.46747C19.0205 3.97339 18.3672 3.83325 17.8456 3.78921C17.49 3.75919 17.083 3.77072 16.7682 3.77964C16.6442 3.78315 16.5345 3.78626 16.4479 3.78626C15.7553 3.78626 15.3067 3.58361 14.7922 3.06904L14.7568 3.03368C14.2539 2.53075 13.8241 2.10089 13.4344 1.80358C13.0184 1.48611 12.5612 1.25 12 1.25ZM15.7657 10.1432C16.1209 9.72033 16.0661 9.08954 15.6432 8.73432C15.2203 8.37909 14.5895 8.43394 14.2343 8.85683L10.6972 13.0676L9.66603 12.1469C9.25406 11.7791 8.6219 11.8149 8.25407 12.2269C7.88624 12.6388 7.92202 13.271 8.33399 13.6388L10.134 15.246C10.3357 15.4261 10.6018 15.5168 10.8716 15.4975C11.1413 15.4781 11.3918 15.3503 11.5657 15.1432L15.7657 10.1432Z"></path>
+											</svg>
+										{/if}
+									</span>
 									{#if !profile.is_online && profile.last_seen}
 										<span class="last-seen">{formatLastSeen(profile.last_seen)}</span>
 									{/if}
@@ -273,7 +340,7 @@
 							class:liked={profile.is_liked}
 							onclick={() => toggleLike(profile)}
 						>
-							{profile.is_liked ? '❤️' : '🤍'}
+							<HeartIcon liked={profile.is_liked} size={20} />
 						</button>
 					</div>
 				{/each}
@@ -291,6 +358,8 @@
 			{/if}
 		{/if}
 	</main>
+
+	<Footer />
 </div>
 
 <style>
@@ -303,43 +372,6 @@
 
 	.browse-page {
 		min-height: 100vh;
-	}
-
-	.header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 1rem 2rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-		position: sticky;
-		top: 0;
-		background: #0a0a0a;
-		z-index: 100;
-	}
-
-	.logo-link {
-		text-decoration: none;
-	}
-
-	.logo {
-		height: 2.5rem;
-	}
-
-	.nav {
-		display: flex;
-		gap: 2rem;
-	}
-
-	.nav-link {
-		color: rgba(255, 255, 255, 0.6);
-		text-decoration: none;
-		font-size: 0.9rem;
-		font-weight: 500;
-		transition: color 0.2s ease;
-	}
-
-	.nav-link:hover, .nav-link.active {
-		color: #fff;
 	}
 
 	.main {
@@ -476,6 +508,63 @@
 		color: rgba(255, 255, 255, 0.4);
 	}
 
+	.verification-required {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 50vh;
+		padding: 2rem;
+	}
+
+	.verification-box {
+		text-align: center;
+		max-width: 400px;
+		padding: 3rem 2rem;
+		background: rgba(255, 56, 92, 0.08);
+		border: 1px solid rgba(255, 56, 92, 0.3);
+	}
+
+	.verification-box .icon {
+		font-size: 3rem;
+		display: block;
+		margin-bottom: 1rem;
+	}
+
+	.verification-box h2 {
+		font-family: 'Playfair Display', serif;
+		font-size: 1.5rem;
+		margin: 0 0 1rem 0;
+		color: #FF385C;
+	}
+
+	.verification-box p {
+		color: rgba(255, 255, 255, 0.6);
+		line-height: 1.6;
+		margin: 0 0 1.5rem 0;
+	}
+
+	.resend-link {
+		background: none;
+		border: none;
+		color: #FF385C;
+		font-family: 'Montserrat', sans-serif;
+		font-size: 0.85rem;
+		cursor: pointer;
+		text-decoration: underline;
+		padding: 0;
+		transition: opacity 0.2s ease;
+	}
+
+	.resend-link:hover:not(:disabled) {
+		opacity: 0.8;
+	}
+
+	.resend-link:disabled {
+		cursor: default;
+		text-decoration: none;
+		opacity: 0.6;
+	}
+
 	.profiles-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -492,9 +581,7 @@
 	}
 
 	.profile-card.verified {
-		border: 2px solid #fbbf24;
-		background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(251, 191, 36, 0.05) 100%);
-		box-shadow: 0 0 20px rgba(251, 191, 36, 0.15);
+		/* Verified styling handled by icon */
 	}
 
 	.profile-card:hover {
@@ -503,8 +590,7 @@
 	}
 
 	.profile-card.verified:hover {
-		border-color: #fbbf24;
-		box-shadow: 0 4px 30px rgba(251, 191, 36, 0.25);
+		/* Verified styling handled by icon */
 	}
 
 	.card-link {
@@ -547,6 +633,17 @@
 		letter-spacing: 0.5px;
 	}
 
+	.not-verified-badge {
+		position: absolute;
+		bottom: 0.75rem;
+		right: 0.75rem;
+		background: rgba(0, 0, 0, 0.7);
+		color: #fff;
+		font-size: 0.75rem;
+		padding: 0.25rem 0.5rem;
+		border-radius: 0;
+	}
+
 	.distance-badge {
 		position: absolute;
 		bottom: 0.75rem;
@@ -569,9 +666,17 @@
 		margin-bottom: 0.25rem;
 	}
 
-	.age {
-		font-size: 1.1rem;
+	.name {
+		font-size: 1rem;
 		font-weight: 600;
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+
+	.verified-icon {
+		color: #ec4899;
+		flex-shrink: 0;
 	}
 
 	.last-seen {
@@ -601,11 +706,11 @@
 		border: none;
 		border-radius: 0;
 		cursor: pointer;
-		font-size: 1.2rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		transition: all 0.2s ease;
+		color: #fff;
 	}
 
 	.like-btn:hover {
@@ -635,16 +740,6 @@
 	}
 
 	@media (max-width: 768px) {
-		.header {
-			flex-direction: column;
-			gap: 1rem;
-			padding: 1rem;
-		}
-
-		.nav {
-			gap: 1rem;
-		}
-
 		.main {
 			padding: 1rem;
 		}

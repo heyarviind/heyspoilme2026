@@ -114,3 +114,13 @@ func (r *LikeRepository) GetGivenLikes(userID uuid.UUID, limit, offset int) ([]m
 
 	return likes, total, nil
 }
+
+func (r *LikeRepository) DeleteAllForUser(userID uuid.UUID) error {
+	// Delete likes given by the user
+	if _, err := r.db.Exec(`DELETE FROM likes WHERE liker_id = $1`, userID); err != nil {
+		return err
+	}
+	// Delete likes received by the user
+	_, err := r.db.Exec(`DELETE FROM likes WHERE liked_id = $1`, userID)
+	return err
+}

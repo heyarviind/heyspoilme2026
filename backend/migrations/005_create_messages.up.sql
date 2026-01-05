@@ -11,3 +11,4 @@ CREATE INDEX idx_messages_conversation ON messages(conversation_id, created_at D
 CREATE INDEX idx_messages_sender ON messages(sender_id);
 CREATE INDEX idx_messages_unread ON messages(conversation_id, read_at) WHERE read_at IS NULL;
 
+

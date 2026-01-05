@@ -5,3 +5,4 @@ ALTER TABLE users DROP COLUMN IF EXISTS password_hash;
 -- Note: Cannot restore NOT NULL on google_id if there are null values
 -- You may need to handle this manually
 
+

@@ -14,3 +14,4 @@ CREATE TABLE conversation_participants (
 CREATE INDEX idx_conversation_participants_user ON conversation_participants(user_id);
 CREATE INDEX idx_conversations_updated ON conversations(updated_at DESC);
 
+

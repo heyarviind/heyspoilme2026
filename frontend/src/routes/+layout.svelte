@@ -1,15 +1,40 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { page } from '$app/stores';
 	import { auth } from '$lib/stores/auth';
 	import { websocket } from '$lib/stores/websocket';
+	import { EmailVerificationBanner, VerificationBanner } from '$lib/components';
 
-	let authState = $state<{ user: any; loading: boolean; initialized: boolean }>({ user: null, loading: true, initialized: false });
+	let authState = $state<{ user: any; profile: any; loading: boolean; initialized: boolean }>({ user: null, profile: null, loading: true, initialized: false });
 	let unsubscribe: (() => void) | null = null;
+	let currentPath = $state('/');
+	let bannerReady = $state(false); // Delay banner display to prevent flash
+
+	// Pages where we should NOT show the email verification banner
+	const noEmailBannerPaths = [
+		'/',
+		'/auth/login',
+		'/auth/callback',
+		'/auth/error',
+		'/auth/verify-email',
+		'/admin',
+	];
+
+	// Pages where we should NOT show the identity verification banner
+	const noIdentityBannerPaths = [
+		'/',
+		'/auth/login',
+		'/auth/callback',
+		'/auth/error',
+		'/auth/verify-email',
+		'/profile/verify',
+		'/profile/setup',
+		'/admin',
+	];
+
 
 	onMount(async () => {
-		await auth.init();
-		
-		// Connect WebSocket if authenticated
+		// Subscribe FIRST to catch all state changes during init
 		unsubscribe = auth.subscribe(state => {
 			authState = state;
 			if (state.user && state.initialized) {
@@ -19,6 +44,19 @@
 				}
 			}
 		});
+
+		// Track current path
+		page.subscribe(p => {
+			currentPath = p.url.pathname;
+		});
+
+		// Initialize auth (subscription will receive loading state updates)
+		await auth.init();
+
+		// Delay banner display by 1 second to prevent flash on page load
+		setTimeout(() => {
+			bannerReady = true;
+		}, 1000);
 	});
 
 	onDestroy(() => {
@@ -26,6 +64,12 @@
 		websocket.disconnect();
 	});
 </script>
+
+{#if bannerReady && authState.initialized && !authState.loading && authState.user && !authState.user.email_verified && !noEmailBannerPaths.some(p => currentPath === p || currentPath.startsWith(p + '?') || currentPath.startsWith(p + '/'))}
+	<EmailVerificationBanner />
+{:else if bannerReady && authState.initialized && !authState.loading && authState.user && authState.user.email_verified && authState.profile && !authState.profile.is_verified && !noIdentityBannerPaths.some(p => currentPath === p || currentPath.startsWith(p + '?') || currentPath.startsWith(p + '/'))}
+	<VerificationBanner />
+{/if}
 
 <slot />
 

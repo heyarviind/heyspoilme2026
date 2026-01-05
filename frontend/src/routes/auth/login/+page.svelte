@@ -176,7 +176,7 @@
 	}
 
 	.logo {
-		height: 4rem;
+		height: 2.5rem;
 		margin-bottom: 2rem;
 	}
 

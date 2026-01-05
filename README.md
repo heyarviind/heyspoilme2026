@@ -1,6 +1,6 @@
 # HeySpoilMe
 
-A premium sugar dating platform.
+A premium exclusive dating platform built on trust and discretion.
 
 ## Tech Stack
 

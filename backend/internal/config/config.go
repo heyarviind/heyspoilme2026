@@ -20,17 +20,28 @@ type Config struct {
 	// JWT
 	JWTSecret string
 
-	// S3
+	// S3 / Cloudflare R2
 	AWSAccessKeyID     string
 	AWSSecretAccessKey string
 	AWSRegion          string
 	S3Bucket           string
+	S3BaseURL          string
+	S3Endpoint         string
 
 	// Discord (optional)
 	DiscordWebhookURL string
 
 	// Frontend URL
 	FrontendURL string
+
+	// ZeptoMail
+	ZeptoMailAPIKey    string
+	ZeptoMailFromEmail string
+	ZeptoMailFromName  string
+
+	// Admin
+	AdminCode1 string
+	AdminCode2 string
 }
 
 func Load() *Config {
@@ -43,10 +54,17 @@ func Load() *Config {
 		JWTSecret:          getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
 		AWSAccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
 		AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
-		AWSRegion:          getEnv("AWS_REGION", "ap-south-1"),
+		AWSRegion:          getEnv("AWS_REGION", "auto"),
 		S3Bucket:           getEnv("S3_BUCKET", "heyspoilme"),
+		S3BaseURL:          getEnv("S3_BASE_URL", ""),
+		S3Endpoint:         getEnv("S3_ENDPOINT", ""),
 		DiscordWebhookURL:  getEnv("DISCORD_WEBHOOK_URL", ""),
 		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3003"),
+		ZeptoMailAPIKey:    getEnv("ZEPTOMAIL_API_KEY", ""),
+		ZeptoMailFromEmail: getEnv("ZEPTOMAIL_FROM_EMAIL", "noreply@heyspoilme.com"),
+		ZeptoMailFromName:  getEnv("ZEPTOMAIL_FROM_NAME", "HeySpoilMe"),
+		AdminCode1:         getEnv("ADMIN_CODE_1", "super"),
+		AdminCode2:         getEnv("ADMIN_CODE_2", "secret"),
 	}
 }
 

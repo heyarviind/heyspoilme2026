@@ -78,3 +78,8 @@ func (r *PresenceRepository) GetOnlineUsers(userIDs []uuid.UUID) (map[uuid.UUID]
 
 	return result, nil
 }
+
+func (r *PresenceRepository) Delete(userID uuid.UUID) error {
+	_, err := r.db.Exec(`DELETE FROM user_presence WHERE user_id = $1`, userID)
+	return err
+}

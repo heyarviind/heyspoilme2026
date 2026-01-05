@@ -9,3 +9,4 @@ CREATE TABLE likes (
 CREATE INDEX idx_likes_liker ON likes(liker_id);
 CREATE INDEX idx_likes_liked ON likes(liked_id);
 
+

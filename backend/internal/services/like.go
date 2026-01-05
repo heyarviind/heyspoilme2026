@@ -1,6 +1,8 @@
 package services
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
 
 	"heyspoilme/internal/models"
@@ -8,21 +10,36 @@ import (
 	"heyspoilme/internal/websocket"
 )
 
+var (
+	ErrNotVerified = errors.New("person verification required to like profiles")
+)
+
 type LikeService struct {
 	likeRepo         *repository.LikeRepository
 	notificationRepo *repository.NotificationRepository
+	profileRepo      *repository.ProfileRepository
 	hub              *websocket.Hub
 }
 
-func NewLikeService(likeRepo *repository.LikeRepository, notificationRepo *repository.NotificationRepository, hub *websocket.Hub) *LikeService {
+func NewLikeService(likeRepo *repository.LikeRepository, notificationRepo *repository.NotificationRepository, profileRepo *repository.ProfileRepository, hub *websocket.Hub) *LikeService {
 	return &LikeService{
 		likeRepo:         likeRepo,
 		notificationRepo: notificationRepo,
+		profileRepo:      profileRepo,
 		hub:              hub,
 	}
 }
 
 func (s *LikeService) LikeProfile(likerID, likedID uuid.UUID, likerName, likerImage string) (*models.Like, error) {
+	// Check if liker is person_verified (is_verified in profiles table)
+	likerProfile, err := s.profileRepo.FindByUserID(likerID)
+	if err != nil || likerProfile == nil {
+		return nil, errors.New("profile not found")
+	}
+	if !likerProfile.IsVerified {
+		return nil, ErrNotVerified
+	}
+
 	exists, _ := s.likeRepo.Exists(likerID, likedID)
 	if exists {
 		return nil, nil
