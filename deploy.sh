@@ -415,6 +415,22 @@ case $ACTION in
         log_success "Migrations complete"
         ;;
     
+    "seed")
+        check_env_file
+        source .env
+        
+        log_info "Running fake users seed script..."
+        
+        # Construct database URL for the seed script
+        export DATABASE_URL="postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@localhost:5434/${POSTGRES_DB:-heyspoilme}?sslmode=disable"
+        
+        cd backend
+        go run cmd/seed-fake-users/main.go
+        cd ..
+        
+        log_success "Seed script complete"
+        ;;
+    
     "rebuild")
         log_info "Full rebuild (no cache)..."
         check_dependencies
@@ -471,6 +487,7 @@ case $ACTION in
         echo "  logs      View logs (optionally: ./deploy.sh logs backend)"
         echo "  status    Show status of all services"
         echo "  migrate   Run database migrations only"
+        echo "  seed      Run fake users seed script (creates 100 demo profiles)"
         echo "  rebuild   Full rebuild with no cache"
         echo "  clean     Remove everything (containers, volumes, images)"
         echo "  local     Local development with docker-compose.yml"
