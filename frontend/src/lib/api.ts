@@ -126,6 +126,15 @@ export const api = {
 			body: { document_type: documentType, document_url: documentUrl, video_url: videoUrl } 
 		}),
 	getVerificationStatus: () => fetchAPI('/api/verification/status'),
+
+	// Cities (public endpoint, no auth required)
+	searchCities: (query: string, country = 'IN') => 
+		fetchAPI<{ cities: Array<{ city: string; state: string; latitude: number; longitude: number }> }>(
+			`/api/cities/search?q=${encodeURIComponent(query)}&country=${country}`
+		),
+
+	// Feature Flags (public endpoint, no auth required)
+	getFeatureFlags: () => fetchAPI<{ restrictions_enabled: boolean }>('/api/feature-flags'),
 };
 
 export default api;

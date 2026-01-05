@@ -79,7 +79,7 @@
 
 		console.log(`Uploading ${type}:`, { ext, contentType, size: file.size });
 
-		const presignedData = await api.getPresignedUrl(ext, contentType) as { url: string; upload_url: string };
+		const presignedData = await api.getPresignedUrl(ext, contentType) as { public_url: string; upload_url: string };
 		console.log('Got presigned URL:', presignedData);
 
 		try {
@@ -103,8 +103,8 @@
 			throw fetchError;
 		}
 
-		console.log('Upload successful, URL:', presignedData.url);
-		return presignedData.url;
+		console.log('Upload successful, URL:', presignedData.public_url);
+		return presignedData.public_url;
 	}
 
 	async function handleDocumentChange(e: Event) {
@@ -204,7 +204,14 @@
 </svelte:head>
 
 <div class="verify-page">
-	<Header />
+	<div class="desktop-header">
+		<Header />
+	</div>
+	<a href="/browse" class="mobile-close" aria-label="Close">
+		<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+			<path d="M18 6L6 18M6 6l12 12"/>
+		</svg>
+	</a>
 
 	<main class="container">
 		{#if loading}
@@ -254,18 +261,20 @@
 							{/each}
 						</div>
 
-						<div class="privacy-notice">
-							<span class="lock-icon">🔐</span>
-							<div>
-								<strong>Your privacy is protected</strong>
-								<p>We will <strong>permanently delete</strong> your documents and video immediately after verification. We do not store this information.</p>
-							</div>
+					<div class="privacy-notice">
+						<span class="lock-icon">🔐</span>
+						<div>
+							<strong>Your privacy is protected</strong>
+							<p>We will <strong>permanently delete</strong> your documents and video immediately after verification. We do not store this information.</p>
 						</div>
+					</div>
 
+					<div class="btn-group single">
 						<button class="btn-primary" onclick={() => step = 2}>
 							Start Verification
 						</button>
 					</div>
+				</div>
 
 				{:else if step === 2}
 					<!-- Step 2: Document Upload -->
@@ -425,7 +434,9 @@
 		{/if}
 	</main>
 
-	<Footer />
+	<div class="desktop-footer">
+		<Footer />
+	</div>
 </div>
 
 <style>
@@ -927,13 +938,48 @@
 		padding: 0.875rem 2rem;
 	}
 
+	.mobile-close {
+		display: none;
+	}
+
 	@media (max-width: 768px) {
+		.desktop-header,
+		.desktop-footer {
+			display: none;
+		}
+
+		.mobile-close {
+			display: flex;
+			position: fixed;
+			top: 1rem;
+			right: 1rem;
+			width: 44px;
+			height: 44px;
+			align-items: center;
+			justify-content: center;
+			color: rgba(255, 255, 255, 0.7);
+			text-decoration: none;
+			z-index: 10;
+		}
+
+		.mobile-close:hover {
+			color: #fff;
+		}
+
+		.verify-page {
+			position: relative;
+			min-height: 100vh;
+			padding-bottom: 5rem;
+		}
+
 		.container {
-			padding: 1rem;
+			padding: 3.5rem 1rem 1rem;
 		}
 
 		.step-content {
 			padding: 1.5rem;
+			background: transparent;
+			border: none;
 		}
 
 		.benefits-grid {
@@ -941,12 +987,60 @@
 		}
 
 		.document-types {
-			flex-direction: column;
+			flex-direction: row;
+			flex-wrap: wrap;
+		}
+
+		.document-option {
+			flex: 1;
+			min-width: 0;
+			padding: 0.75rem 0.5rem;
+		}
+
+		.doc-label {
+			font-size: 0.65rem;
+		}
+
+		.doc-icon {
+			font-size: 1.25rem;
 		}
 
 		.code {
 			font-size: 1.5rem;
 			letter-spacing: 0.3rem;
+		}
+
+		.btn-group {
+			position: fixed;
+			bottom: 0;
+			left: 0;
+			right: 0;
+			padding: 1rem;
+			background: #0a0a0a;
+			border-top: 1px solid rgba(255, 255, 255, 0.1);
+			z-index: 10;
+		}
+
+		.btn-group.single {
+			display: flex;
+		}
+
+		.btn-group.single .btn-primary {
+			width: 100%;
+		}
+
+		.status-card {
+			background: transparent;
+			border: none;
+			padding: 2rem 0;
+		}
+
+		.status-card .btn-primary {
+			position: fixed;
+			bottom: 1rem;
+			left: 1rem;
+			right: 1rem;
+			width: auto;
 		}
 	}
 </style>

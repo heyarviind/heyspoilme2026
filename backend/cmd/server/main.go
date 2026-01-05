@@ -71,6 +71,8 @@ func main() {
 	presenceRepo := repository.NewPresenceRepository(db)
 	verificationRepo := repository.NewVerificationRepository(db)
 	adminRepo := repository.NewAdminRepository(db)
+	cityRepo := repository.NewCityRepository(db)
+	featureFlagRepo := repository.NewFeatureFlagRepository(db)
 
 	// Initialize WebSocket hub
 	hub := websocket.NewHub()
@@ -84,11 +86,14 @@ func main() {
 	rankingService := services.NewRankingService(db)
 	go rankingService.Start()
 
+	// Initialize feature flag service first (used by other services)
+	featureFlagService := services.NewFeatureFlagService(featureFlagRepo)
+
 	// Initialize services
 	authService := services.NewAuthService(userRepo, cfg.JWTSecret, emailClient)
 	profileService := services.NewProfileService(profileRepo, userRepo)
-	chatService := services.NewChatService(messageRepo, profileRepo, userRepo, hub)
-	likeService := services.NewLikeService(likeRepo, notificationRepo, profileRepo, hub)
+	chatService := services.NewChatService(messageRepo, profileRepo, userRepo, hub, featureFlagService)
+	likeService := services.NewLikeService(likeRepo, notificationRepo, profileRepo, hub, featureFlagService)
 	notificationService := services.NewNotificationService(notificationRepo)
 	presenceService := services.NewPresenceService(presenceRepo, hub)
 	accountService := services.NewAccountService(userRepo, profileRepo, messageRepo, likeRepo, notificationRepo, presenceRepo, s3Client)
@@ -104,11 +109,12 @@ func main() {
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	verificationHandler := handlers.NewVerificationHandler(verificationService)
 	wsHandler := handlers.NewWebSocketHandler(hub, authService, presenceService)
-	adminHandler := handlers.NewAdminHandler(adminService, cfg.AdminCode1, cfg.AdminCode2)
+	adminHandler := handlers.NewAdminHandler(adminService, featureFlagService, cfg.AdminCode1, cfg.AdminCode2)
+	cityHandler := handlers.NewCityHandler(cityRepo)
 
 	// Initialize auth middleware
 	authMiddleware := middleware.NewAuthMiddleware(cfg.JWTSecret)
-	verificationMiddleware := middleware.NewVerificationMiddleware(userRepo)
+	verificationMiddleware := middleware.NewVerificationMiddleware(userRepo, featureFlagService)
 
 	// Setup Gin
 	r := gin.Default()
@@ -141,6 +147,12 @@ func main() {
 		authRoutes.POST("/resend-verification", authMiddleware.RequireAuth(), authHandler.ResendVerificationEmail)
 		authRoutes.DELETE("/account", authMiddleware.RequireAuth(), authHandler.DeleteAccount)
 	}
+
+	// Public routes for autocomplete (no auth required)
+	r.GET("/api/cities/search", cityHandler.SearchCities)
+
+	// Public feature flags endpoint (returns restrictions status)
+	r.GET("/api/feature-flags", adminHandler.GetPublicFeatureFlags)
 
 	// Protected routes (basic auth only)
 	api := r.Group("/api")
@@ -214,6 +226,8 @@ func main() {
 		adminRoutes.POST("/verifications/:requestId/reject", adminHandler.RejectVerification)
 		adminRoutes.GET("/images", adminHandler.ListAllImages)
 		adminRoutes.DELETE("/images/:imageId", adminHandler.DeleteProfileImage)
+		adminRoutes.GET("/feature-flags", adminHandler.GetFeatureFlags)
+		adminRoutes.PUT("/feature-flags/:key", adminHandler.UpdateFeatureFlag)
 	}
 
 	// Start server

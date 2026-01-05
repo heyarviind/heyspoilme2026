@@ -6,6 +6,7 @@
 	import { validateImage, compressImage, getWebPFilename } from '$lib/utils/image';
 	import Header from '$lib/components/Header.svelte';
 	import Footer from '$lib/components/Footer.svelte';
+	import CityAutocomplete from '$lib/components/CityAutocomplete.svelte';
 
 	const MAX_IMAGES = 6;
 
@@ -52,16 +53,18 @@
 	let editCity = $state('');
 	let editState = $state('');
 	let editSalaryRange = $state('');
+	let editLatitude = $state(0);
+	let editLongitude = $state(0);
 
 	const salaryOptions = ['5-10 LPA', '10-20 LPA', '20-50 LPA', '50+ LPA'];
-	const indianStates = [
-		'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
-		'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
-		'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
-		'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
-		'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-		'Delhi', 'Chandigarh', 'Puducherry'
-	];
+
+	// Handle city selection from autocomplete
+	function handleCitySelect(selectedCity: { city: string; state: string; latitude: number; longitude: number }) {
+		editCity = selectedCity.city;
+		editState = selectedCity.state;
+		editLatitude = selectedCity.latitude;
+		editLongitude = selectedCity.longitude;
+	}
 
 	async function loadProfile() {
 		loading = true;
@@ -97,6 +100,8 @@
 				bio: editBio,
 				city: editCity,
 				state: editState,
+				latitude: editLatitude,
+				longitude: editLongitude,
 			};
 			if (profile.gender === 'male') {
 				updates.salary_range = editSalaryRange;
@@ -309,16 +314,18 @@
 					</div>
 					<div class="form-group">
 						<label for="edit-city">City</label>
-						<input id="edit-city" type="text" bind:value={editCity} />
+						<CityAutocomplete 
+							bind:value={editCity}
+							onSelect={handleCitySelect}
+							placeholder="Start typing your city..."
+						/>
 					</div>
-					<div class="form-group">
-						<label for="edit-state">State</label>
-						<select id="edit-state" bind:value={editState}>
-							{#each indianStates as st}
-								<option value={st}>{st}</option>
-							{/each}
-						</select>
-					</div>
+					{#if editState}
+						<div class="form-group">
+							<label>State</label>
+							<div class="state-display">{editState}</div>
+						</div>
+					{/if}
 					{#if profile.gender === 'male'}
 						<div class="form-group">
 							<label for="edit-salary">Salary Range</label>
@@ -769,6 +776,14 @@
 		background-position: right 1rem center;
 	}
 
+	.state-display {
+		padding: 0.75rem;
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 1rem;
+	}
+
 	.form-actions {
 		display: flex;
 		gap: 1rem;
@@ -1149,8 +1164,76 @@
 			grid-template-columns: repeat(2, 1fr);
 		}
 
+		.popup-overlay {
+			padding: 0;
+			background: #0a0a0a;
+		}
+
 		.popup-content {
-			padding: 2rem 1.5rem;
+			max-width: none;
+			height: 100%;
+			display: flex;
+			flex-direction: column;
+			padding: 0;
+			padding-bottom: 5rem;
+			background: #0a0a0a;
+			border: none;
+			box-shadow: none;
+			overflow-y: auto;
+			-webkit-overflow-scrolling: touch;
+		}
+
+		.popup-close {
+			position: fixed;
+			top: 1rem;
+			right: 1rem;
+			z-index: 10;
+			background: transparent;
+		}
+
+		.popup-header {
+			padding: 4rem 1.5rem 1.5rem;
+			margin-bottom: 0;
+			flex-shrink: 0;
+		}
+
+		.crown-img {
+			width: 80px;
+			height: 80px;
+		}
+
+		.popup-header h2 {
+			font-size: 1.75rem;
+		}
+
+		.pricing-card {
+			margin: 0 1.5rem 1rem;
+			flex-shrink: 0;
+		}
+
+		.pricing-tagline {
+			padding: 0 1.5rem;
+			margin-bottom: 1rem;
+			flex-shrink: 0;
+		}
+
+		.benefits {
+			padding: 0 1.5rem;
+			margin-bottom: 2rem;
+			flex-shrink: 0;
+		}
+
+		.popup-content .terms {
+			display: none;
+		}
+
+		.subscribe-btn {
+			position: fixed;
+			bottom: 0;
+			left: 0;
+			right: 0;
+			padding: 1.25rem;
+			font-size: 1rem;
 		}
 
 		.amount {

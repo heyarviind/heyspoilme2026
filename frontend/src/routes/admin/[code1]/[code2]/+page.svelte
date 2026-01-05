@@ -9,7 +9,7 @@
 	let code2 = $state('');
 	let loading = $state(true);
 	let error = $state('');
-	let activeTab = $state<'users' | 'messages' | 'verifications' | 'images'>('users');
+	let activeTab = $state<'users' | 'messages' | 'verifications' | 'images' | 'settings'>('users');
 
 	// Stats
 	let stats = $state<Record<string, number>>({});
@@ -34,6 +34,10 @@
 	let allImages = $state<any[]>([]);
 	let imagesTotal = $state(0);
 	let imagesPage = $state(1);
+
+	// Feature Flags
+	let featureFlags = $state<any[]>([]);
+	let featureFlagUpdating = $state(false);
 
 	// Modals
 	let showUserModal = $state(false);
@@ -128,6 +132,9 @@
 				const result = await adminFetch(`/images?${params.toString()}`);
 				allImages = result.images || [];
 				imagesTotal = result.total || 0;
+			} else if (activeTab === 'settings') {
+				const result = await adminFetch('/feature-flags');
+				featureFlags = result.flags || [];
 			}
 		} catch (e: any) {
 			error = e.message;
@@ -235,6 +242,38 @@
 		}
 	}
 
+	async function toggleFeatureFlag(key: string, currentEnabled: boolean) {
+		featureFlagUpdating = true;
+		try {
+			await adminFetch(`/feature-flags/${key}`, {
+				method: 'PUT',
+				body: JSON.stringify({ enabled: !currentEnabled }),
+			});
+			// Update local state
+			featureFlags = featureFlags.map(f => 
+				f.key === key ? { ...f, enabled: !currentEnabled } : f
+			);
+		} catch (e: any) {
+			alert('Error: ' + e.message);
+		} finally {
+			featureFlagUpdating = false;
+		}
+	}
+
+	function getFlagDisplayName(key: string): string {
+		const names: Record<string, string> = {
+			'restrictions_enabled': 'Restrictions Enabled',
+		};
+		return names[key] || key;
+	}
+
+	function getFlagDescription(key: string): string {
+		const descriptions: Record<string, string> = {
+			'restrictions_enabled': 'When enabled, all restrictions are enforced: email verification, identity verification, gender-based messaging rules, and subscription requirements. When disabled, anyone can do anything.',
+		};
+		return descriptions[key] || '';
+	}
+
 	function formatDate(dateStr: string) {
 		if (!dateStr) return '-';
 		return new Date(dateStr).toLocaleString();
@@ -311,6 +350,13 @@
 				onclick={() => { activeTab = 'images'; imagesPage = 1; loadData(); }}
 			>
 				Images
+			</button>
+			<button 
+				class="nav-link" 
+				class:active={activeTab === 'settings'}
+				onclick={() => { activeTab = 'settings'; loadData(); }}
+			>
+				Settings
 			</button>
 		</nav>
 	</header>
@@ -578,6 +624,44 @@
 					disabled={imagesPage >= Math.ceil(imagesTotal / 50)} 
 					onclick={() => { imagesPage++; loadData(); }}
 				>Next</button>
+			</div>
+
+		{:else if activeTab === 'settings'}
+			<div class="settings-container">
+				<h2 class="settings-title">Feature Flags</h2>
+				<p class="settings-description">Control platform behavior with feature flags. Changes take effect immediately.</p>
+
+				<div class="feature-flags-list">
+					{#each featureFlags as flag}
+						<div class="feature-flag-card">
+							<div class="flag-info">
+								<h3 class="flag-name">{getFlagDisplayName(flag.key)}</h3>
+								<p class="flag-description">{getFlagDescription(flag.key)}</p>
+								<span class="flag-key">Key: {flag.key}</span>
+							</div>
+							<div class="flag-toggle">
+								<button 
+									class="toggle-btn" 
+									class:enabled={flag.enabled}
+									onclick={() => toggleFeatureFlag(flag.key, flag.enabled)}
+									disabled={featureFlagUpdating}
+								>
+									<span class="toggle-slider"></span>
+								</button>
+								<span class="toggle-label">{flag.enabled ? 'ON' : 'OFF'}</span>
+							</div>
+						</div>
+					{/each}
+
+					{#if featureFlags.length === 0}
+						<div class="empty-state">No feature flags configured.</div>
+					{/if}
+				</div>
+
+				<div class="settings-warning">
+					<strong>⚠️ Warning:</strong> Toggling "Restrictions Enabled" to OFF will disable all platform restrictions. 
+					Anyone will be able to send messages, like profiles, and access all features without verification.
+				</div>
 			</div>
 		{/if}
 	</main>
@@ -1524,6 +1608,116 @@
 
 	.gallery-delete:hover {
 		background: rgba(248, 113, 113, 0.1);
+	}
+
+	/* Settings / Feature Flags */
+	.settings-container {
+		max-width: 800px;
+	}
+
+	.settings-title {
+		font-size: 1.5rem;
+		font-weight: 600;
+		margin-bottom: 0.5rem;
+	}
+
+	.settings-description {
+		color: #9ca3af;
+		margin-bottom: 2rem;
+	}
+
+	.feature-flags-list {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.feature-flag-card {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		background: #1a1a1a;
+		padding: 1.5rem;
+		gap: 2rem;
+	}
+
+	.flag-info {
+		flex: 1;
+	}
+
+	.flag-name {
+		font-size: 1.125rem;
+		font-weight: 600;
+		margin-bottom: 0.5rem;
+	}
+
+	.flag-description {
+		font-size: 0.875rem;
+		color: #9ca3af;
+		margin-bottom: 0.5rem;
+		line-height: 1.5;
+	}
+
+	.flag-key {
+		font-size: 0.75rem;
+		color: #6b7280;
+		font-family: monospace;
+	}
+
+	.flag-toggle {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.toggle-btn {
+		position: relative;
+		width: 60px;
+		height: 32px;
+		background: #374151;
+		border: none;
+		border-radius: 16px;
+		cursor: pointer;
+		transition: background 0.2s ease;
+	}
+
+	.toggle-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.toggle-btn.enabled {
+		background: #22c55e;
+	}
+
+	.toggle-slider {
+		position: absolute;
+		top: 4px;
+		left: 4px;
+		width: 24px;
+		height: 24px;
+		background: #fff;
+		border-radius: 50%;
+		transition: transform 0.2s ease;
+	}
+
+	.toggle-btn.enabled .toggle-slider {
+		transform: translateX(28px);
+	}
+
+	.toggle-label {
+		font-size: 0.875rem;
+		font-weight: 600;
+		min-width: 30px;
+	}
+
+	.settings-warning {
+		margin-top: 2rem;
+		padding: 1rem;
+		background: rgba(251, 191, 36, 0.1);
+		border-left: 4px solid #fbbf24;
+		color: #fbbf24;
+		font-size: 0.875rem;
 	}
 
 	/* Responsive */

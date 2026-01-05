@@ -732,5 +732,77 @@
 		color: rgba(255, 255, 255, 0.4);
 		margin: 1rem 0 0;
 	}
+
+	@media (max-width: 768px) {
+		.popup-overlay {
+			padding: 0;
+			background: #0a0a0a;
+		}
+
+		.popup-content {
+			max-width: none;
+			height: 100%;
+			display: flex;
+			flex-direction: column;
+			padding: 0;
+			padding-bottom: 5rem;
+			background: #0a0a0a;
+			border: none;
+			overflow-y: auto;
+			-webkit-overflow-scrolling: touch;
+		}
+
+		.popup-close {
+			position: fixed;
+			top: 1rem;
+			right: 1rem;
+			z-index: 10;
+		}
+
+		.popup-header {
+			padding: 4rem 1.5rem 1.5rem;
+			margin-bottom: 0;
+			flex-shrink: 0;
+		}
+
+		.crown-img {
+			width: 80px;
+			height: 80px;
+		}
+
+		.popup-header h2 {
+			font-size: 1.75rem;
+		}
+
+		.pricing-card {
+			margin: 0 1.5rem 1rem;
+			flex-shrink: 0;
+		}
+
+		.pricing-tagline {
+			padding: 0 1.5rem;
+			margin-bottom: 1rem;
+			flex-shrink: 0;
+		}
+
+		.benefits-list {
+			padding: 0 1.5rem;
+			margin-bottom: 2rem;
+			flex-shrink: 0;
+		}
+
+		.popup-content .terms {
+			display: none;
+		}
+
+		.subscribe-btn {
+			position: fixed;
+			bottom: 0;
+			left: 0;
+			right: 0;
+			padding: 1.25rem;
+			font-size: 1rem;
+		}
+	}
 </style>
 

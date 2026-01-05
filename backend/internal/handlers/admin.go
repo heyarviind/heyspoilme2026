@@ -11,16 +11,18 @@ import (
 )
 
 type AdminHandler struct {
-	adminService *services.AdminService
-	adminCode1   string
-	adminCode2   string
+	adminService       *services.AdminService
+	featureFlagService *services.FeatureFlagService
+	adminCode1         string
+	adminCode2         string
 }
 
-func NewAdminHandler(adminService *services.AdminService, adminCode1, adminCode2 string) *AdminHandler {
+func NewAdminHandler(adminService *services.AdminService, featureFlagService *services.FeatureFlagService, adminCode1, adminCode2 string) *AdminHandler {
 	return &AdminHandler{
-		adminService: adminService,
-		adminCode1:   adminCode1,
-		adminCode2:   adminCode2,
+		adminService:       adminService,
+		featureFlagService: featureFlagService,
+		adminCode1:         adminCode1,
+		adminCode2:         adminCode2,
 	}
 }
 
@@ -298,6 +300,47 @@ func (h *AdminHandler) ListAllImages(c *gin.Context) {
 		"total":  total,
 		"page":   page,
 		"limit":  limit,
+	})
+}
+
+// GetFeatureFlags returns all feature flags
+func (h *AdminHandler) GetFeatureFlags(c *gin.Context) {
+	flags := h.featureFlagService.GetAllWithDefaults()
+	c.JSON(http.StatusOK, gin.H{"flags": flags})
+}
+
+// UpdateFeatureFlag updates a feature flag
+func (h *AdminHandler) UpdateFeatureFlag(c *gin.Context) {
+	key := c.Param("key")
+	if key == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "key is required"})
+		return
+	}
+
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.featureFlagService.SetFlag(key, req.Enabled); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "feature flag updated",
+		"key":     key,
+		"enabled": req.Enabled,
+	})
+}
+
+// GetPublicFeatureFlags returns public feature flag status (no auth required)
+func (h *AdminHandler) GetPublicFeatureFlags(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"restrictions_enabled": h.featureFlagService.RestrictionsEnabled(),
 	})
 }
 

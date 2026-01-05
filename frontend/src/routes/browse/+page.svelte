@@ -7,6 +7,7 @@
 	import Header from '$lib/components/Header.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 	import HeartIcon from '$lib/components/HeartIcon.svelte';
+	import VerificationModal from '$lib/components/VerificationModal.svelte';
 
 	interface Profile {
 		id: string;
@@ -51,6 +52,7 @@
 	let isAuthReady = $derived(authState?.initialized && !authState?.loading);
 	let resending = $state(false);
 	let resent = $state(false);
+	let showVerificationModal = $state(false);
 
 	async function resendVerification() {
 		if (resending || resent) return;
@@ -156,7 +158,7 @@
 
 	async function toggleLike(profile: Profile) {
 		if (!isEmailVerified) {
-			alert('Please verify your email to like profiles');
+			showVerificationModal = true;
 			return;
 		}
 		
@@ -168,9 +170,12 @@
 			}
 			profile.is_liked = !profile.is_liked;
 		} catch (e: any) {
-			console.error('Failed to toggle like:', e);
-			if (e.message?.includes('email_not_verified') || e.message?.includes('verify your email')) {
-				alert('Please verify your email to like profiles');
+			const errMsg = e.message || '';
+			if (errMsg.includes('verification') || errMsg.includes('person_verification') || 
+			    errMsg.includes('email_not_verified') || errMsg.includes('verify your email')) {
+				showVerificationModal = true;
+			} else {
+				console.error('Failed to toggle like:', e);
 			}
 		}
 	}
@@ -361,6 +366,8 @@
 
 	<Footer />
 </div>
+
+<VerificationModal bind:show={showVerificationModal} onClose={() => showVerificationModal = false} />
 
 <style>
 	:global(body) {

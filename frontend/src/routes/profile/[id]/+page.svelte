@@ -6,6 +6,7 @@
 	import { auth } from '$lib/stores/auth';
 	import Footer from '$lib/components/Footer.svelte';
 	import HeartIcon from '$lib/components/HeartIcon.svelte';
+	import VerificationModal from '$lib/components/VerificationModal.svelte';
 
 	interface Profile {
 		id: string;
@@ -35,6 +36,7 @@
 	let showSubscriptionModal = $state(false);
 	let messageText = $state('');
 	let sendingMessage = $state(false);
+	let restrictionsEnabled = $state(true); // Default to true (restricted) until we know
 	
 	function getWealthLabel(status?: string): string {
 		switch (status) {
@@ -129,13 +131,30 @@
 		return `${diffDays} days ago`;
 	}
 
+	async function loadFeatureFlags() {
+		try {
+			const flags = await api.getFeatureFlags();
+			restrictionsEnabled = flags.restrictions_enabled;
+		} catch (e) {
+			// Default to restrictions enabled if we can't fetch flags
+			restrictionsEnabled = true;
+		}
+	}
+
 	onMount(() => {
 		loadProfile();
+		loadFeatureFlags();
 	});
 
 	let authState = $state<any>(null);
 	auth.subscribe(s => authState = s);
-	let canMessage = $derived(authState?.profile?.gender === 'female' && profile?.gender === 'male');
+	
+	// When restrictions are disabled, anyone can message anyone
+	// When restrictions are enabled, only females can message males
+	let canMessage = $derived(
+		!restrictionsEnabled || 
+		(authState?.profile?.gender === 'female' && profile?.gender === 'male')
+	);
 </script>
 
 <svelte:head>
@@ -247,7 +266,7 @@
 					<button class="message-btn" onclick={() => showMessageModal = true}>
 						Send Message
 					</button>
-				{:else if authState?.profile?.gender === 'male'}
+				{:else if restrictionsEnabled && authState?.profile?.gender === 'male'}
 					<p class="message-hint">
 						Wait for her to message you first 💫
 					</p>
@@ -286,26 +305,7 @@
 	</div>
 {/if}
 
-{#if showVerificationModal}
-	<div class="modal-overlay" onclick={() => showVerificationModal = false}>
-		<div class="modal verification-modal" onclick={(e) => e.stopPropagation()}>
-			<div class="modal-icon">🔐</div>
-			<h2>Identity Verification Required</h2>
-			<p class="modal-description">
-				Complete a quick identity verification to like profiles and send messages. 
-				This keeps our community safe and ensures only serious members can connect.
-			</p>
-			<div class="modal-actions">
-				<button class="btn-secondary" onclick={() => showVerificationModal = false}>
-					Later
-				</button>
-				<a href="/profile/verify" class="btn-primary">
-					Verify Now
-				</a>
-			</div>
-		</div>
-	</div>
-{/if}
+<VerificationModal bind:show={showVerificationModal} onClose={() => showVerificationModal = false} />
 
 {#if showSubscriptionModal}
 	<div class="modal-overlay" onclick={() => showSubscriptionModal = false}>

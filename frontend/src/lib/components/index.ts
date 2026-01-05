@@ -4,4 +4,6 @@ export { default as Header } from './Header.svelte';
 export { default as Footer } from './Footer.svelte';
 export { default as EmailVerificationBanner } from './EmailVerificationBanner.svelte';
 export { default as VerificationBanner } from './VerificationBanner.svelte';
+export { default as VerificationModal } from './VerificationModal.svelte';
 export { default as HeartIcon } from './HeartIcon.svelte';
+export { default as CityAutocomplete } from './CityAutocomplete.svelte';

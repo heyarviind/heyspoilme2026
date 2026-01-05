@@ -18,18 +18,20 @@ var (
 )
 
 type ChatService struct {
-	messageRepo *repository.MessageRepository
-	profileRepo *repository.ProfileRepository
-	userRepo    *repository.UserRepository
-	hub         *websocket.Hub
+	messageRepo        *repository.MessageRepository
+	profileRepo        *repository.ProfileRepository
+	userRepo           *repository.UserRepository
+	hub                *websocket.Hub
+	featureFlagService *FeatureFlagService
 }
 
-func NewChatService(messageRepo *repository.MessageRepository, profileRepo *repository.ProfileRepository, userRepo *repository.UserRepository, hub *websocket.Hub) *ChatService {
+func NewChatService(messageRepo *repository.MessageRepository, profileRepo *repository.ProfileRepository, userRepo *repository.UserRepository, hub *websocket.Hub, featureFlagService *FeatureFlagService) *ChatService {
 	return &ChatService{
-		messageRepo: messageRepo,
-		profileRepo: profileRepo,
-		userRepo:    userRepo,
-		hub:         hub,
+		messageRepo:        messageRepo,
+		profileRepo:        profileRepo,
+		userRepo:           userRepo,
+		hub:                hub,
+		featureFlagService: featureFlagService,
 	}
 }
 
@@ -49,8 +51,11 @@ func (s *ChatService) CreateConversation(senderID uuid.UUID, req *models.CreateC
 		return nil, errors.New("conversation already exists")
 	}
 
-	// Sender must be person_verified to message
-	if !senderProfile.IsVerified {
+	// Check if restrictions are enabled
+	restrictionsEnabled := s.featureFlagService.RestrictionsEnabled()
+
+	// Sender must be person_verified to message (only if restrictions enabled)
+	if restrictionsEnabled && !senderProfile.IsVerified {
 		return nil, ErrVerificationRequired
 	}
 
@@ -60,8 +65,8 @@ func (s *ChatService) CreateConversation(senderID uuid.UUID, req *models.CreateC
 		return nil, errors.New("sender not found")
 	}
 
-	// Males cannot initiate conversations
-	if senderProfile.Gender == models.GenderMale {
+	// Males cannot initiate conversations (only if restrictions enabled)
+	if restrictionsEnabled && senderProfile.Gender == models.GenderMale {
 		return nil, ErrMaleCannotInitiate
 	}
 
@@ -82,9 +87,10 @@ func (s *ChatService) CreateConversation(senderID uuid.UUID, req *models.CreateC
 		return nil, err
 	}
 
-	// Only send real-time notification if recipient can view messages
+	// When restrictions disabled, everyone can view messages
+	// Otherwise: only send real-time notification if recipient can view messages
 	// (male with wealth_status != 'none', or female)
-	recipientCanView := recipientProfile.Gender == models.GenderFemale || recipientUser.WealthStatus.CanViewMessages()
+	recipientCanView := !restrictionsEnabled || recipientProfile.Gender == models.GenderFemale || recipientUser.WealthStatus.CanViewMessages()
 	if recipientCanView {
 		s.hub.BroadcastToUser(req.RecipientID, &models.WSMessage{
 			Type:    models.WSTypeMessage,
@@ -137,9 +143,12 @@ func (s *ChatService) GetInbox(userID uuid.UUID) (*models.InboxResponse, error) 
 		return nil, err
 	}
 
-	// Females can view all messages
-	// Males need wealth_status != 'none' to view all messages
-	canViewAll := userProfile.Gender == models.GenderFemale || user.WealthStatus.CanViewMessages()
+	// Check if restrictions are enabled
+	restrictionsEnabled := s.featureFlagService.RestrictionsEnabled()
+
+	// When restrictions disabled, everyone can view all messages
+	// Otherwise: Females can view all messages, Males need wealth_status != 'none'
+	canViewAll := !restrictionsEnabled || userProfile.Gender == models.GenderFemale || user.WealthStatus.CanViewMessages()
 
 	response := &models.InboxResponse{
 		CanViewAllMessages: canViewAll,
@@ -241,13 +250,16 @@ func (s *ChatService) SendMessage(conversationID, senderID uuid.UUID, content st
 		return nil, errors.New("sender not found")
 	}
 
-	// Sender must be person_verified
-	if !senderProfile.IsVerified {
+	// Check if restrictions are enabled
+	restrictionsEnabled := s.featureFlagService.RestrictionsEnabled()
+
+	// Sender must be person_verified (only if restrictions enabled)
+	if restrictionsEnabled && !senderProfile.IsVerified {
 		return nil, ErrVerificationRequired
 	}
 
-	// Males must have wealth_status != 'none' to send messages
-	if senderProfile.Gender == models.GenderMale && !senderUser.WealthStatus.CanMessage() {
+	// Males must have wealth_status != 'none' to send messages (only if restrictions enabled)
+	if restrictionsEnabled && senderProfile.Gender == models.GenderMale && !senderUser.WealthStatus.CanMessage() {
 		return nil, ErrWealthStatusRequired
 	}
 
@@ -263,11 +275,11 @@ func (s *ChatService) SendMessage(conversationID, senderID uuid.UUID, content st
 			recipientProfile, _ := s.profileRepo.FindByUserID(participantID)
 			recipientUser, _ := s.userRepo.FindByID(participantID)
 
-			// Only broadcast if recipient can view
-			// Females can always view, males need wealth_status
-			recipientCanView := recipientProfile != nil && (
+			// When restrictions disabled, everyone can view
+			// Otherwise: only broadcast if recipient can view (Females can always view, males need wealth_status)
+			recipientCanView := !restrictionsEnabled || (recipientProfile != nil && (
 				recipientProfile.Gender == models.GenderFemale ||
-				(recipientUser != nil && recipientUser.WealthStatus.CanViewMessages()))
+				(recipientUser != nil && recipientUser.WealthStatus.CanViewMessages())))
 
 			if recipientCanView {
 				s.hub.BroadcastToUser(participantID, &models.WSMessage{

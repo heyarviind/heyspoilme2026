@@ -143,7 +143,7 @@
 		</button>
 
 		<p class="terms">
-			By signing in, you agree to our Terms of Service and Privacy Policy.
+			By signing in, you agree to our <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>.
 			You must be 21+ to use this platform.
 		</p>
 	</div>
@@ -351,5 +351,29 @@
 		font-size: 0.75rem;
 		color: rgba(255, 255, 255, 0.4);
 		line-height: 1.6;
+	}
+
+	.terms a {
+		color: rgba(255, 255, 255, 0.6);
+		text-decoration: underline;
+		transition: color 0.2s;
+	}
+
+	.terms a:hover {
+		color: #fff;
+	}
+
+	@media (max-width: 480px) {
+		.login-page {
+			padding: 1rem;
+		}
+
+		.login-card {
+			max-width: none;
+			background: transparent;
+			border: none;
+			backdrop-filter: none;
+			padding: 1.5rem 0;
+		}
 	}
 </style>

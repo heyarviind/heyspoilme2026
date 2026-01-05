@@ -1,5 +1,11 @@
 <script lang="ts">
 	import { Footer } from '$lib/components';
+	import { auth } from '$lib/stores/auth';
+
+	let authState = $state<any>(null);
+	auth.subscribe(s => authState = s);
+
+	let isLoggedIn = $derived(authState?.user !== null && authState?.initialized);
 </script>
 
 <svelte:head>
@@ -15,7 +21,11 @@
 	<section class="hero">
 		<nav class="nav">
 			<img src="/img/logo.svg" alt="HeySpoilMe" class="logo" />
-			<a href="/auth/login" class="sign-in-btn">Sign In</a>
+			{#if isLoggedIn}
+				<a href="/browse" class="sign-in-btn">Dashboard</a>
+			{:else}
+				<a href="/auth/login" class="sign-in-btn">Sign In</a>
+			{/if}
 		</nav>
 
 		<div class="hero-content">
@@ -30,8 +40,12 @@
 		</p>
 
 			<div class="hero-cta">
-				<a href="/auth/login" class="btn-primary">Get Started</a>
-				<span class="cta-note">Free to join · 21+ only</span>
+				{#if isLoggedIn}
+					<a href="/browse" class="btn-primary">Browse Profiles</a>
+				{:else}
+					<a href="/auth/login" class="btn-primary">Get Started</a>
+					<span class="cta-note">Free to join · 21+ only</span>
+				{/if}
 			</div>
 		</div>
 
@@ -195,7 +209,11 @@
 	<section class="cta">
 		<h2>Ready to Connect?</h2>
 		<p>Join a growing community of verified, serious members across India.</p>
-		<a href="/auth/login" class="btn-primary">Create Free Account</a>
+		{#if isLoggedIn}
+			<a href="/browse" class="btn-primary">Browse Profiles</a>
+		{:else}
+			<a href="/auth/login" class="btn-primary">Create Free Account</a>
+		{/if}
 	</section>
 
 	<Footer />

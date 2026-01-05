@@ -3,6 +3,7 @@
 	import { api } from '$lib/api';
 	import { auth } from '$lib/stores/auth';
 	import { generateDisplayName } from '$lib/utils';
+	import CityAutocomplete from '$lib/components/CityAutocomplete.svelte';
 
 	let step = $state(1);
 	let loading = $state(false);
@@ -32,20 +33,19 @@
 		}
 	}
 
+	// Handle city selection from autocomplete
+	function handleCitySelect(selectedCity: { city: string; state: string; latitude: number; longitude: number }) {
+		city = selectedCity.city;
+		state_ = selectedCity.state;
+		latitude = selectedCity.latitude;
+		longitude = selectedCity.longitude;
+	}
+
 	const salaryOptions = [
 		'5-10 LPA',
 		'10-20 LPA',
 		'20-50 LPA',
 		'50+ LPA',
-	];
-
-	const indianStates = [
-		'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
-		'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
-		'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
-		'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
-		'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
-		'Delhi', 'Chandigarh', 'Puducherry'
 	];
 
 	function nextStep() {
@@ -68,8 +68,8 @@
 		}
 
 		if (step === 3) {
-			if (!city.trim() || !state_) {
-				error = 'Please enter your city and state';
+			if (!city.trim() || !state_ || latitude === 0) {
+				error = 'Please select a city from the suggestions';
 				return;
 			}
 		}
@@ -86,20 +86,7 @@
 		if (step > 1) step--;
 	}
 
-	async function getLocation() {
-		if (navigator.geolocation) {
-			navigator.geolocation.getCurrentPosition(
-				(position) => {
-					latitude = position.coords.latitude;
-					longitude = position.coords.longitude;
-				},
-				() => {
-					// Use approximate location based on city (would need geocoding API)
-					console.log('Location access denied, will use city for approximate location');
-				}
-			);
-		}
-	}
+	// No longer need browser geolocation - we get lat/lng from city database
 
 	async function submitProfile() {
 		loading = true;
@@ -131,12 +118,6 @@
 		}
 	}
 
-	// Request location on step 3
-	$effect(() => {
-		if (step === 3) {
-			getLocation();
-		}
-	});
 
 	// Skip salary step for females
 	$effect(() => {
@@ -239,24 +220,19 @@
 
 				<div class="form-group">
 					<label for="city">City</label>
-					<input 
-						type="text" 
-						id="city" 
-						bind:value={city} 
-						placeholder="e.g., Mumbai"
-						class="input"
+					<CityAutocomplete 
+						bind:value={city}
+						onSelect={handleCitySelect}
+						placeholder="Start typing your city..."
 					/>
 				</div>
 
-				<div class="form-group">
-					<label for="state">State</label>
-					<select id="state" bind:value={state_} class="input">
-						<option value="">Select your state</option>
-						{#each indianStates as s}
-							<option value={s}>{s}</option>
-						{/each}
-					</select>
-				</div>
+				{#if state_}
+					<div class="form-group">
+						<label>State</label>
+						<div class="state-display">{state_}</div>
+					</div>
+				{/if}
 			</div>
 		{:else if step === 4 && gender === 'male'}
 			<div class="step">
@@ -577,6 +553,14 @@
 
 	.btn-secondary:hover:not(:disabled) {
 		border-color: rgba(255, 255, 255, 0.4);
+	}
+
+	.state-display {
+		padding: 0.875rem 1rem;
+		background: rgba(255, 255, 255, 0.03);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 1rem;
 	}
 </style>
 

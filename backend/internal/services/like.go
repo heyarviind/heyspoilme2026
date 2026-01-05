@@ -15,28 +15,30 @@ var (
 )
 
 type LikeService struct {
-	likeRepo         *repository.LikeRepository
-	notificationRepo *repository.NotificationRepository
-	profileRepo      *repository.ProfileRepository
-	hub              *websocket.Hub
+	likeRepo           *repository.LikeRepository
+	notificationRepo   *repository.NotificationRepository
+	profileRepo        *repository.ProfileRepository
+	hub                *websocket.Hub
+	featureFlagService *FeatureFlagService
 }
 
-func NewLikeService(likeRepo *repository.LikeRepository, notificationRepo *repository.NotificationRepository, profileRepo *repository.ProfileRepository, hub *websocket.Hub) *LikeService {
+func NewLikeService(likeRepo *repository.LikeRepository, notificationRepo *repository.NotificationRepository, profileRepo *repository.ProfileRepository, hub *websocket.Hub, featureFlagService *FeatureFlagService) *LikeService {
 	return &LikeService{
-		likeRepo:         likeRepo,
-		notificationRepo: notificationRepo,
-		profileRepo:      profileRepo,
-		hub:              hub,
+		likeRepo:           likeRepo,
+		notificationRepo:   notificationRepo,
+		profileRepo:        profileRepo,
+		hub:                hub,
+		featureFlagService: featureFlagService,
 	}
 }
 
 func (s *LikeService) LikeProfile(likerID, likedID uuid.UUID, likerName, likerImage string) (*models.Like, error) {
-	// Check if liker is person_verified (is_verified in profiles table)
+	// Check if liker is person_verified (is_verified in profiles table) - only if restrictions enabled
 	likerProfile, err := s.profileRepo.FindByUserID(likerID)
 	if err != nil || likerProfile == nil {
 		return nil, errors.New("profile not found")
 	}
-	if !likerProfile.IsVerified {
+	if s.featureFlagService.RestrictionsEnabled() && !likerProfile.IsVerified {
 		return nil, ErrNotVerified
 	}
 
