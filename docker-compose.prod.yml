@@ -14,8 +14,10 @@ services:
       - caddy_config:/config
       - caddy_logs:/var/log/caddy
     depends_on:
-      - frontend
-      - backend
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
 
   # PostgreSQL Database
   postgres:
@@ -28,6 +30,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-heyspoilme}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5434:5432"  # Expose only to localhost for migrations (5434 to avoid conflicts)
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
@@ -71,6 +75,12 @@ services:
       # Admin
       ADMIN_CODE_1: ${ADMIN_CODE_1}
       ADMIN_CODE_2: ${ADMIN_CODE_2}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,8 +96,15 @@ services:
       NODE_ENV: production
       PORT: 3001
       PUBLIC_API_URL: http://backend:8081
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:

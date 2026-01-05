@@ -1,1 +1,31 @@
-backend/.env
+# Environment files (anywhere in project)
+.env
+.env.local
+.env.*.local
+
+# Keep the example
+!.env.example
+
+# Node
+node_modules/
+.pnpm-store/
+
+# Build outputs
+backend/bin/
+backend/server
+frontend/build/
+frontend/.svelte-kit/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Docker
+docker-compose.override.yml
