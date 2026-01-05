@@ -30,6 +30,44 @@ if ! command -v docker-compose &> /dev/null; then
     exit 1
 fi
 
+# Check for .env file
+if [ ! -f ".env" ]; then
+    echo -e "${RED}Error: .env file not found!${NC}"
+    echo -e "${YELLOW}Please create a .env file from .env.example:${NC}"
+    echo -e "  cp .env.example .env"
+    echo -e "  # Then edit .env with your actual values"
+    exit 1
+fi
+
+# Validate required environment variables for production
+if [ "$MODE" = "prod" ]; then
+    source .env
+    
+    MISSING_VARS=""
+    
+    [ -z "$POSTGRES_PASSWORD" ] && MISSING_VARS="$MISSING_VARS POSTGRES_PASSWORD"
+    [ -z "$GOOGLE_CLIENT_ID" ] && MISSING_VARS="$MISSING_VARS GOOGLE_CLIENT_ID"
+    [ -z "$GOOGLE_CLIENT_SECRET" ] && MISSING_VARS="$MISSING_VARS GOOGLE_CLIENT_SECRET"
+    [ -z "$JWT_SECRET" ] && MISSING_VARS="$MISSING_VARS JWT_SECRET"
+    [ -z "$AWS_ACCESS_KEY_ID" ] && MISSING_VARS="$MISSING_VARS AWS_ACCESS_KEY_ID"
+    [ -z "$AWS_SECRET_ACCESS_KEY" ] && MISSING_VARS="$MISSING_VARS AWS_SECRET_ACCESS_KEY"
+    [ -z "$S3_BASE_URL" ] && MISSING_VARS="$MISSING_VARS S3_BASE_URL"
+    [ -z "$S3_ENDPOINT" ] && MISSING_VARS="$MISSING_VARS S3_ENDPOINT"
+    [ -z "$ZEPTOMAIL_API_KEY" ] && MISSING_VARS="$MISSING_VARS ZEPTOMAIL_API_KEY"
+    [ -z "$ADMIN_CODE_1" ] && MISSING_VARS="$MISSING_VARS ADMIN_CODE_1"
+    [ -z "$ADMIN_CODE_2" ] && MISSING_VARS="$MISSING_VARS ADMIN_CODE_2"
+    
+    if [ -n "$MISSING_VARS" ]; then
+        echo -e "${RED}Error: Missing required environment variables for production:${NC}"
+        echo -e "${YELLOW}$MISSING_VARS${NC}"
+        echo -e ""
+        echo -e "Please update your .env file with the missing values."
+        exit 1
+    fi
+    
+    echo -e "${GREEN}✓ All required environment variables found${NC}"
+fi
+
 # Select compose file based on mode
 if [ "$MODE" = "prod" ]; then
     COMPOSE_FILE="docker-compose.prod.yml"

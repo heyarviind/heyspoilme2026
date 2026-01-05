@@ -26,9 +26,35 @@ services:
     container_name: heyspoilme-backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-heyspoilme}?sslmode=disable
+      # Server
       PORT: ${BACKEND_PORT:-8081}
       GIN_MODE: ${GIN_MODE:-release}
+      # Database
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-heyspoilme}?sslmode=disable
+      # Google OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URL: ${GOOGLE_REDIRECT_URL:-http://localhost:8081/api/auth/google/callback}
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-change-in-production}
+      # S3 / Cloudflare R2
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-auto}
+      S3_BUCKET: ${S3_BUCKET:-heyspoilme}
+      S3_BASE_URL: ${S3_BASE_URL:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      # Frontend
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
+      # Email
+      ZEPTOMAIL_API_KEY: ${ZEPTOMAIL_API_KEY:-}
+      ZEPTOMAIL_FROM_EMAIL: ${ZEPTOMAIL_FROM_EMAIL:-noreply@heyspoilme.com}
+      ZEPTOMAIL_FROM_NAME: ${ZEPTOMAIL_FROM_NAME:-HeySpoilMe}
+      # Discord
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      # Admin
+      ADMIN_CODE_1: ${ADMIN_CODE_1:-super}
+      ADMIN_CODE_2: ${ADMIN_CODE_2:-secret}
     ports:
       - "${BACKEND_PORT:-8081}:${BACKEND_PORT:-8081}"
     depends_on:
