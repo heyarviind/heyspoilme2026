@@ -51,6 +51,27 @@
 	let showImageViewer = $state(false);
 	let viewerImageUrl = $state('');
 
+	// Image upload
+	let uploadingImage = $state(false);
+	let fileInput: HTMLInputElement | null = null;
+
+	// Profile editing
+	let editingProfile = $state(false);
+	let editForm = $state<{
+		display_name: string;
+		age: number;
+		bio: string;
+		city: string;
+		state: string;
+	}>({ display_name: '', age: 21, bio: '', city: '', state: '' });
+
+	// Messaging
+	let showMessageModal = $state(false);
+	let messageRecipient = $state<any>(null);
+	let messageSender = $state<any>(null);
+	let messageContent = $state('');
+	let sendingMessage = $state(false);
+
 	$effect(() => {
 		const unsubscribe = page.subscribe(p => {
 			code1 = p.params.code1 || '';
@@ -242,6 +263,150 @@
 		}
 	}
 
+	async function uploadImageForUser(userId: string, file: File) {
+		if (!file) return;
+
+		uploadingImage = true;
+		try {
+			// Get file extension
+			const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+			const contentType = file.type;
+
+			// Request presigned URL from admin endpoint
+			const urlData = await adminFetch(`/users/${userId}/upload-url`, {
+				method: 'POST',
+				body: JSON.stringify({ content_type: contentType, file_ext: ext }),
+			});
+
+			// Upload file directly to S3
+			const uploadResponse = await fetch(urlData.upload_url, {
+				method: 'PUT',
+				body: file,
+				headers: {
+					'Content-Type': contentType,
+				},
+			});
+
+			if (!uploadResponse.ok) {
+				throw new Error('Failed to upload file to storage');
+			}
+
+			// Register the image in database
+			const image = await adminFetch(`/users/${userId}/images`, {
+				method: 'POST',
+				body: JSON.stringify({
+					s3_key: urlData.s3_key,
+					url: urlData.public_url,
+					is_primary: !selectedUser?.images?.length, // First image is primary
+				}),
+			});
+
+			// Update local state
+			if (selectedUser && selectedUser.id === userId) {
+				selectedUser.images = [...(selectedUser.images || []), image];
+			}
+
+			alert('Image uploaded successfully!');
+		} catch (e: any) {
+			alert('Upload error: ' + e.message);
+		} finally {
+			uploadingImage = false;
+		}
+	}
+
+	function handleFileSelect(e: Event, userId: string) {
+		const input = e.target as HTMLInputElement;
+		if (input.files && input.files[0]) {
+			uploadImageForUser(userId, input.files[0]);
+			input.value = ''; // Reset input
+		}
+	}
+
+	async function toggleUserOnline(userId: string, currentOnline: boolean) {
+		try {
+			await adminFetch(`/users/${userId}/presence`, {
+				method: 'PUT',
+				body: JSON.stringify({ is_online: !currentOnline }),
+			});
+			if (selectedUser && selectedUser.id === userId) {
+				selectedUser.is_online = !currentOnline;
+			}
+			// Also update in list
+			users = users.map(u => u.id === userId ? { ...u, is_online: !currentOnline } : u);
+		} catch (e: any) {
+			alert('Error: ' + e.message);
+		}
+	}
+
+	function startEditProfile() {
+		if (!selectedUser) return;
+		editForm = {
+			display_name: selectedUser.display_name || '',
+			age: selectedUser.age || 21,
+			bio: selectedUser.bio || '',
+			city: selectedUser.city || '',
+			state: selectedUser.state || '',
+		};
+		editingProfile = true;
+	}
+
+	async function saveProfile() {
+		if (!selectedUser) return;
+		
+		try {
+			await adminFetch(`/users/${selectedUser.id}/profile`, {
+				method: 'PUT',
+				body: JSON.stringify({
+					display_name: editForm.display_name,
+					age: editForm.age,
+					bio: editForm.bio,
+					city: editForm.city,
+					state: editForm.state,
+				}),
+			});
+			// Update local state
+			selectedUser.display_name = editForm.display_name;
+			selectedUser.age = editForm.age;
+			selectedUser.bio = editForm.bio;
+			selectedUser.city = editForm.city;
+			selectedUser.state = editForm.state;
+			editingProfile = false;
+			await loadData();
+		} catch (e: any) {
+			alert('Error: ' + e.message);
+		}
+	}
+
+	function openMessageModal(user: any) {
+		messageRecipient = user;
+		messageSender = null;
+		messageContent = '';
+		showMessageModal = true;
+	}
+
+	async function sendMessage() {
+		if (!messageRecipient || !messageSender || !messageContent.trim()) return;
+		
+		sendingMessage = true;
+		try {
+			await adminFetch('/messages/send', {
+				method: 'POST',
+				body: JSON.stringify({
+					sender_id: messageSender.id,
+					recipient_id: messageRecipient.id,
+					content: messageContent.trim(),
+				}),
+			});
+			alert('Message sent!');
+			showMessageModal = false;
+			messageContent = '';
+		} catch (e: any) {
+			alert('Error: ' + e.message);
+		} finally {
+			sendingMessage = false;
+		}
+	}
+
 	async function toggleFeatureFlag(key: string, currentEnabled: boolean) {
 		featureFlagUpdating = true;
 		try {
@@ -424,11 +589,21 @@
 						{#each users as user}
 							<tr>
 								<td>
-									<div class="user-cell">
-										<span class="user-name">{user.display_name || 'No profile'}</span>
-										{#if user.age}
-											<span class="user-meta">{user.age} yrs</span>
+									<div class="user-cell-with-image">
+										{#if user.primary_image}
+											<img src={user.primary_image} alt="" class="user-thumbnail" />
+										{:else}
+											<div class="user-thumbnail-placeholder"></div>
 										{/if}
+										<div class="user-cell">
+											<span class="user-name">{user.display_name || 'No profile'}</span>
+											{#if user.age}
+												<span class="user-meta">{user.age} yrs</span>
+											{/if}
+											{#if user.is_fake}
+												<span class="fake-badge">FAKE</span>
+											{/if}
+										</div>
 									</div>
 								</td>
 								<td>
@@ -677,80 +852,148 @@
 			</div>
 			
 			<div class="modal-body">
-				<div class="user-details">
-					<div class="detail-row">
-						<span class="label">Email:</span>
-						<span class="value">{selectedUser.email}</span>
-					</div>
-					<div class="detail-row">
-						<span class="label">Email Verified:</span>
-						<span class="value">{selectedUser.email_verified ? 'Yes' : 'No'}</span>
-					</div>
-					<div class="detail-row">
-						<span class="label">ID Verified:</span>
-						<span class="value">{selectedUser.is_verified ? 'Yes' : 'No'}</span>
-					</div>
-					<div class="detail-row">
-						<span class="label">Gender:</span>
-						<span class="value">{selectedUser.gender || '-'}</span>
-					</div>
-					<div class="detail-row">
-						<span class="label">Age:</span>
-						<span class="value">{selectedUser.age || '-'}</span>
-					</div>
-					<div class="detail-row">
-						<span class="label">Location:</span>
-						<span class="value">{selectedUser.city ? `${selectedUser.city}, ${selectedUser.state}` : '-'}</span>
-					</div>
-					<div class="detail-row">
-						<span class="label">Status:</span>
-						<span class="value">
-							<select 
-								value={selectedUser.wealth_status}
-								onchange={(e) => updateWealthStatus(selectedUser.id, e.currentTarget.value)}
-							>
-								<option value="none">Standard</option>
-								<option value="low">Trusted</option>
-								<option value="medium">Premium</option>
-								<option value="high">Elite</option>
-							</select>
-						</span>
-					</div>
-					<div class="detail-row">
-						<span class="label">Online:</span>
-						<span class="value">
-							{#if selectedUser.is_online}
-								<span class="online-dot"></span> Online
-							{:else}
-								Last seen {formatRelativeTime(selectedUser.last_seen)}
-							{/if}
-						</span>
-					</div>
-					<div class="detail-row">
-						<span class="label">Joined:</span>
-						<span class="value">{formatDate(selectedUser.created_at)}</span>
-					</div>
-				</div>
-
-				{#if selectedUser.images && selectedUser.images.length > 0}
-					<h3>Profile Images</h3>
-					<div class="images-grid">
-						{#each selectedUser.images as img}
-							<div class="image-card">
-								<img 
-									src={img.url} 
-									alt="Profile" 
-									onclick={() => { viewerImageUrl = img.url; showImageViewer = true; }}
-								/>
-								<button class="delete-image" onclick={() => deleteProfileImage(img.id)}>
-									Delete
-								</button>
-							</div>
-						{/each}
+				{#if editingProfile}
+					<div class="edit-form">
+						<div class="form-row">
+							<label>Display Name:</label>
+							<input type="text" bind:value={editForm.display_name} />
+						</div>
+						<div class="form-row">
+							<label>Age:</label>
+							<input type="number" bind:value={editForm.age} min="21" max="100" />
+						</div>
+						<div class="form-row">
+							<label>Bio:</label>
+							<textarea bind:value={editForm.bio} rows="3"></textarea>
+						</div>
+						<div class="form-row">
+							<label>City:</label>
+							<input type="text" bind:value={editForm.city} />
+						</div>
+						<div class="form-row">
+							<label>State:</label>
+							<input type="text" bind:value={editForm.state} />
+						</div>
+						<div class="form-actions">
+							<button class="btn-secondary" onclick={() => editingProfile = false}>Cancel</button>
+							<button class="btn-primary" onclick={saveProfile}>Save Changes</button>
+						</div>
 					</div>
 				{:else}
-					<p class="no-images">No profile images</p>
+					<div class="user-details">
+						<div class="detail-row">
+							<span class="label">Email:</span>
+							<span class="value">{selectedUser.email}</span>
+						</div>
+						<div class="detail-row">
+							<span class="label">Email Verified:</span>
+							<span class="value">{selectedUser.email_verified ? 'Yes' : 'No'}</span>
+						</div>
+						<div class="detail-row">
+							<span class="label">ID Verified:</span>
+							<span class="value">{selectedUser.is_verified ? 'Yes' : 'No'}</span>
+						</div>
+						{#if selectedUser.is_fake}
+							<div class="detail-row">
+								<span class="label">Type:</span>
+								<span class="value"><span class="fake-badge">FAKE PROFILE</span></span>
+							</div>
+						{/if}
+						<div class="detail-row">
+							<span class="label">Gender:</span>
+							<span class="value">{selectedUser.gender || '-'}</span>
+						</div>
+						<div class="detail-row">
+							<span class="label">Age:</span>
+							<span class="value">{selectedUser.age || '-'}</span>
+						</div>
+						<div class="detail-row">
+							<span class="label">Bio:</span>
+							<span class="value bio-value">{selectedUser.bio || '-'}</span>
+						</div>
+						<div class="detail-row">
+							<span class="label">Location:</span>
+							<span class="value">{selectedUser.city ? `${selectedUser.city}, ${selectedUser.state}` : '-'}</span>
+						</div>
+						<div class="detail-row">
+							<span class="label">Status:</span>
+							<span class="value">
+								<select 
+									value={selectedUser.wealth_status}
+									onchange={(e) => updateWealthStatus(selectedUser.id, e.currentTarget.value)}
+								>
+									<option value="none">Standard</option>
+									<option value="low">Trusted</option>
+									<option value="medium">Premium</option>
+									<option value="high">Elite</option>
+								</select>
+							</span>
+						</div>
+						<div class="detail-row">
+							<span class="label">Online:</span>
+							<span class="value online-toggle">
+								{#if selectedUser.is_online}
+									<span class="online-dot"></span> Online
+								{:else}
+									Last seen {formatRelativeTime(selectedUser.last_seen)}
+								{/if}
+								<button 
+									class="btn-mini" 
+									onclick={() => toggleUserOnline(selectedUser.id, selectedUser.is_online)}
+								>
+									{selectedUser.is_online ? 'Set Offline' : 'Set Online'}
+								</button>
+							</span>
+						</div>
+						<div class="detail-row">
+							<span class="label">Joined:</span>
+							<span class="value">{formatDate(selectedUser.created_at)}</span>
+						</div>
+					</div>
+
+					<div class="action-buttons">
+						<button class="btn-action" onclick={startEditProfile}>Edit Profile</button>
+						<button class="btn-action" onclick={() => openMessageModal(selectedUser)}>Send Message</button>
+					</div>
 				{/if}
+
+				<div class="images-section">
+					<div class="images-header">
+						<h3>Profile Images</h3>
+						<input 
+							type="file" 
+							accept="image/jpeg,image/png,image/gif,image/webp"
+							style="display: none;"
+							bind:this={fileInput}
+							onchange={(e) => handleFileSelect(e, selectedUser.id)}
+						/>
+						<button 
+							class="btn-upload" 
+							onclick={() => fileInput?.click()}
+							disabled={uploadingImage}
+						>
+							{uploadingImage ? 'Uploading...' : 'Upload Image'}
+						</button>
+					</div>
+					{#if selectedUser.images && selectedUser.images.length > 0}
+						<div class="images-grid">
+							{#each selectedUser.images as img}
+								<div class="image-card">
+									<img 
+										src={img.url} 
+										alt="Profile" 
+										onclick={() => { viewerImageUrl = img.url; showImageViewer = true; }}
+									/>
+									<button class="delete-image" onclick={() => deleteProfileImage(img.id)}>
+										Delete
+									</button>
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<p class="no-images">No profile images</p>
+					{/if}
+				</div>
 			</div>
 
 			<div class="modal-footer">
@@ -819,6 +1062,47 @@
 		{:else}
 			<img src={viewerImageUrl} alt="Full size" />
 		{/if}
+	</div>
+{/if}
+
+<!-- Message Modal -->
+{#if showMessageModal && messageRecipient}
+	<div class="modal-overlay" onclick={() => showMessageModal = false}>
+		<div class="modal modal-message" onclick={(e) => e.stopPropagation()}>
+			<div class="modal-header">
+				<h2>Send Message to {messageRecipient.display_name || messageRecipient.email}</h2>
+				<button class="modal-close" onclick={() => showMessageModal = false}>X</button>
+			</div>
+			<div class="modal-body">
+				<div class="form-row">
+					<label>Send as (select sender):</label>
+					<select bind:value={messageSender} class="sender-select">
+						<option value={null}>-- Select sender --</option>
+						{#each users.filter(u => u.id !== messageRecipient.id && u.display_name) as user}
+							<option value={user}>{user.display_name} ({user.email})</option>
+						{/each}
+					</select>
+				</div>
+				<div class="form-row">
+					<label>Message:</label>
+					<textarea 
+						bind:value={messageContent} 
+						rows="4" 
+						placeholder="Type your message..."
+					></textarea>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button class="btn-secondary" onclick={() => showMessageModal = false}>Cancel</button>
+				<button 
+					class="btn-primary" 
+					onclick={sendMessage} 
+					disabled={!messageSender || !messageContent.trim() || sendingMessage}
+				>
+					{sendingMessage ? 'Sending...' : 'Send Message'}
+				</button>
+			</div>
+		</div>
 	</div>
 {/if}
 
@@ -1017,6 +1301,26 @@
 		background: #1a1a1a;
 	}
 
+	.user-cell-with-image {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.user-thumbnail {
+		width: 40px;
+		height: 40px;
+		border-radius: 4px;
+		object-fit: cover;
+	}
+
+	.user-thumbnail-placeholder {
+		width: 40px;
+		height: 40px;
+		border-radius: 4px;
+		background: #262626;
+	}
+
 	.user-cell {
 		display: flex;
 		flex-direction: column;
@@ -1031,6 +1335,15 @@
 	.user-meta {
 		font-size: 0.75rem;
 		color: #9ca3af;
+	}
+
+	.fake-badge {
+		font-size: 0.6rem;
+		padding: 0.1rem 0.3rem;
+		background: rgba(139, 92, 246, 0.2);
+		color: #a78bfa;
+		border-radius: 2px;
+		font-weight: 600;
 	}
 
 	.email-cell {
@@ -1512,6 +1825,163 @@
 	.no-images {
 		color: #9ca3af;
 		font-style: italic;
+	}
+
+	.images-section {
+		margin-top: 1.5rem;
+	}
+
+	.images-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 1rem;
+	}
+
+	.images-header h3 {
+		margin: 0;
+	}
+
+	.btn-upload {
+		padding: 0.5rem 1rem;
+		background: #fff;
+		border: none;
+		border-radius: 0;
+		color: #0a0a0a;
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 0.875rem;
+	}
+
+	.btn-upload:hover {
+		background: #e5e5e5;
+	}
+
+	.btn-upload:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	/* Edit form styles */
+	.edit-form {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.form-row {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.form-row label {
+		font-size: 0.875rem;
+		color: #9ca3af;
+	}
+
+	.form-row input,
+	.form-row textarea,
+	.form-row select {
+		padding: 0.5rem;
+		background: #262626;
+		border: 1px solid #374151;
+		border-radius: 0;
+		color: #fff;
+		font-family: inherit;
+		font-size: 0.875rem;
+	}
+
+	.form-row input:focus,
+	.form-row textarea:focus,
+	.form-row select:focus {
+		outline: none;
+		border-color: #fff;
+	}
+
+	.form-actions {
+		display: flex;
+		gap: 0.5rem;
+		justify-content: flex-end;
+		margin-top: 0.5rem;
+	}
+
+	.btn-primary {
+		padding: 0.5rem 1rem;
+		background: #fff;
+		border: none;
+		border-radius: 0;
+		color: #0a0a0a;
+		cursor: pointer;
+		font-family: inherit;
+	}
+
+	.btn-primary:hover {
+		background: #e5e5e5;
+	}
+
+	.btn-primary:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.action-buttons {
+		display: flex;
+		gap: 0.5rem;
+		margin-top: 1rem;
+	}
+
+	.btn-action {
+		padding: 0.5rem 1rem;
+		background: #262626;
+		border: 1px solid #fff;
+		border-radius: 0;
+		color: #fff;
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 0.875rem;
+	}
+
+	.btn-action:hover {
+		background: #374151;
+	}
+
+	.btn-mini {
+		padding: 0.25rem 0.5rem;
+		background: #262626;
+		border: 1px solid #6b7280;
+		border-radius: 0;
+		color: #9ca3af;
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 0.75rem;
+		margin-left: 0.5rem;
+	}
+
+	.btn-mini:hover {
+		background: #374151;
+		color: #fff;
+	}
+
+	.online-toggle {
+		display: flex;
+		align-items: center;
+	}
+
+	.bio-value {
+		max-width: 300px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* Message modal */
+	.modal-message {
+		max-width: 500px;
+	}
+
+	.sender-select {
+		width: 100%;
 	}
 
 	/* Image Viewer */

@@ -95,3 +95,23 @@ func (s *AdminService) ListAllImages(limit, offset int) ([]repository.AdminImage
 	return s.adminRepo.ListAllImages(limit, offset)
 }
 
+// AddUserProfileImage adds a profile image for a user (admin functionality)
+func (s *AdminService) AddUserProfileImage(userID uuid.UUID, s3Key, url string, isPrimary bool) (*models.ProfileImage, error) {
+	return s.adminRepo.AddUserProfileImage(userID, s3Key, url, isPrimary)
+}
+
+// UpdateUserPresence updates a user's online status
+func (s *AdminService) UpdateUserPresence(userID uuid.UUID, isOnline bool) error {
+	return s.adminRepo.UpdateUserPresence(userID, isOnline)
+}
+
+// UpdateUserProfile updates a user's profile fields
+func (s *AdminService) UpdateUserProfile(userID uuid.UUID, displayName *string, age *int, bio *string, city *string, state *string, latitude *float64, longitude *float64) error {
+	return s.adminRepo.UpdateUserProfile(userID, displayName, age, bio, city, state, latitude, longitude)
+}
+
+// SendMessageAsUser sends a message as one user to another
+func (s *AdminService) SendMessageAsUser(senderID, recipientID uuid.UUID, content string) error {
+	return s.adminRepo.SendMessageAsUser(senderID, recipientID, content)
+}
+

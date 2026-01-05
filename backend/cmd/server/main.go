@@ -109,7 +109,7 @@ func main() {
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	verificationHandler := handlers.NewVerificationHandler(verificationService)
 	wsHandler := handlers.NewWebSocketHandler(hub, authService, presenceService)
-	adminHandler := handlers.NewAdminHandler(adminService, featureFlagService, cfg.AdminCode1, cfg.AdminCode2)
+	adminHandler := handlers.NewAdminHandler(adminService, featureFlagService, s3Client, cfg.AdminCode1, cfg.AdminCode2)
 	cityHandler := handlers.NewCityHandler(cityRepo)
 
 	// Initialize auth middleware
@@ -227,6 +227,11 @@ func main() {
 		adminRoutes.GET("/users/:userId", adminHandler.GetUser)
 		adminRoutes.DELETE("/users/:userId", adminHandler.DeleteUser)
 		adminRoutes.PUT("/users/:userId/wealth-status", adminHandler.UpdateUserWealthStatus)
+		adminRoutes.PUT("/users/:userId/presence", adminHandler.UpdateUserPresence)
+		adminRoutes.PUT("/users/:userId/profile", adminHandler.UpdateUserProfile)
+		adminRoutes.POST("/users/:userId/upload-url", adminHandler.GetUserUploadURL)
+		adminRoutes.POST("/users/:userId/images", adminHandler.AddUserImage)
+		adminRoutes.POST("/messages/send", adminHandler.SendMessageAsUser)
 		adminRoutes.GET("/messages", adminHandler.ListMessages)
 		adminRoutes.GET("/verifications", adminHandler.ListVerificationRequests)
 		adminRoutes.POST("/verifications/:requestId/approve", adminHandler.ApproveVerification)

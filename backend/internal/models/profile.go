@@ -64,6 +64,7 @@ type Profile struct {
 	Longitude    float64    `json:"longitude" db:"longitude"`
 	IsComplete   bool       `json:"is_complete" db:"is_complete"`
 	IsVerified   bool       `json:"is_verified" db:"is_verified"`
+	IsFake       bool       `json:"is_fake" db:"is_fake"`
 	ProfileScore float64    `json:"profile_score" db:"profile_score"`
 	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at" db:"updated_at"`

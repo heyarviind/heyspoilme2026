@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -8,19 +10,22 @@ import (
 	"github.com/google/uuid"
 
 	"heyspoilme/internal/services"
+	"heyspoilme/pkg/storage"
 )
 
 type AdminHandler struct {
 	adminService       *services.AdminService
 	featureFlagService *services.FeatureFlagService
+	s3Client           *storage.S3Client
 	adminCode1         string
 	adminCode2         string
 }
 
-func NewAdminHandler(adminService *services.AdminService, featureFlagService *services.FeatureFlagService, adminCode1, adminCode2 string) *AdminHandler {
+func NewAdminHandler(adminService *services.AdminService, featureFlagService *services.FeatureFlagService, s3Client *storage.S3Client, adminCode1, adminCode2 string) *AdminHandler {
 	return &AdminHandler{
 		adminService:       adminService,
 		featureFlagService: featureFlagService,
+		s3Client:           s3Client,
 		adminCode1:         adminCode1,
 		adminCode2:         adminCode2,
 	}
@@ -342,5 +347,175 @@ func (h *AdminHandler) GetPublicFeatureFlags(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"restrictions_enabled": h.featureFlagService.RestrictionsEnabled(),
 	})
+}
+
+// GetUserUploadURL returns a presigned URL for uploading an image to a user's profile
+func (h *AdminHandler) GetUserUploadURL(c *gin.Context) {
+	userIDStr := c.Param("userId")
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+
+	var req struct {
+		ContentType string `json:"content_type" binding:"required"`
+		FileExt     string `json:"file_ext" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	validTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/png":  true,
+		"image/gif":  true,
+		"image/webp": true,
+	}
+	if !validTypes[req.ContentType] {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid content type"})
+		return
+	}
+
+	if h.s3Client == nil {
+		log.Println("[AdminUpload] ERROR: S3 client is nil - storage not configured")
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "image upload not configured"})
+		return
+	}
+
+	fileKey := fmt.Sprintf("profiles/%s/%s%s", userID.String(), uuid.New().String(), req.FileExt)
+	log.Printf("[AdminUpload] Generating presigned URL for user %s, key: %s", userID, fileKey)
+
+	uploadURL, err := h.s3Client.GetPresignedUploadURL(fileKey, req.ContentType)
+	if err != nil {
+		log.Printf("[AdminUpload] ERROR generating presigned URL: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate presigned URL"})
+		return
+	}
+
+	publicURL := h.s3Client.GetPublicURL(fileKey)
+
+	c.JSON(http.StatusOK, gin.H{
+		"upload_url": uploadURL,
+		"s3_key":     fileKey,
+		"public_url": publicURL,
+	})
+}
+
+// AddUserImage adds a profile image for a user (after uploading to S3)
+func (h *AdminHandler) AddUserImage(c *gin.Context) {
+	userIDStr := c.Param("userId")
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+
+	var req struct {
+		S3Key     string `json:"s3_key" binding:"required"`
+		URL       string `json:"url" binding:"required"`
+		IsPrimary bool   `json:"is_primary"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	image, err := h.adminService.AddUserProfileImage(userID, req.S3Key, req.URL, req.IsPrimary)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, image)
+}
+
+// UpdateUserPresence updates a user's online status
+func (h *AdminHandler) UpdateUserPresence(c *gin.Context) {
+	userIDStr := c.Param("userId")
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+
+	var req struct {
+		IsOnline bool `json:"is_online"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.adminService.UpdateUserPresence(userID, req.IsOnline); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "presence updated", "is_online": req.IsOnline})
+}
+
+// UpdateUserProfile updates a user's profile fields
+func (h *AdminHandler) UpdateUserProfile(c *gin.Context) {
+	userIDStr := c.Param("userId")
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+
+	var req struct {
+		DisplayName *string  `json:"display_name,omitempty"`
+		Age         *int     `json:"age,omitempty"`
+		Bio         *string  `json:"bio,omitempty"`
+		City        *string  `json:"city,omitempty"`
+		State       *string  `json:"state,omitempty"`
+		Latitude    *float64 `json:"latitude,omitempty"`
+		Longitude   *float64 `json:"longitude,omitempty"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.adminService.UpdateUserProfile(userID, req.DisplayName, req.Age, req.Bio, req.City, req.State, req.Latitude, req.Longitude); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "profile updated"})
+}
+
+// SendMessageAsUser sends a message from one user to another
+func (h *AdminHandler) SendMessageAsUser(c *gin.Context) {
+	var req struct {
+		SenderID    string `json:"sender_id" binding:"required"`
+		RecipientID string `json:"recipient_id" binding:"required"`
+		Content     string `json:"content" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	senderID, err := uuid.Parse(req.SenderID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid sender ID"})
+		return
+	}
+
+	recipientID, err := uuid.Parse(req.RecipientID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid recipient ID"})
+		return
+	}
+
+	if err := h.adminService.SendMessageAsUser(senderID, recipientID, req.Content); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "message sent"})
 }
 

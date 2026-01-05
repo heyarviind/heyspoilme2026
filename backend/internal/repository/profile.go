@@ -57,11 +57,11 @@ func (r *ProfileRepository) Create(userID uuid.UUID, req *models.CreateProfileRe
 func (r *ProfileRepository) FindByUserID(userID uuid.UUID) (*models.Profile, error) {
 	profile := &models.Profile{}
 	err := r.db.QueryRow(`
-		SELECT id, user_id, display_name, gender, age, bio, salary_range, city, state, latitude, longitude, is_complete, is_verified, profile_score, created_at, updated_at
+		SELECT id, user_id, display_name, gender, age, bio, salary_range, city, state, latitude, longitude, is_complete, is_verified, is_fake, profile_score, created_at, updated_at
 		FROM profiles WHERE user_id = $1
 	`, userID).Scan(&profile.ID, &profile.UserID, &profile.DisplayName, &profile.Gender, &profile.Age, &profile.Bio,
 		&profile.SalaryRange, &profile.City, &profile.State, &profile.Latitude, &profile.Longitude,
-		&profile.IsComplete, &profile.IsVerified, &profile.ProfileScore, &profile.CreatedAt, &profile.UpdatedAt)
+		&profile.IsComplete, &profile.IsVerified, &profile.IsFake, &profile.ProfileScore, &profile.CreatedAt, &profile.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -76,11 +76,11 @@ func (r *ProfileRepository) FindByUserID(userID uuid.UUID) (*models.Profile, err
 func (r *ProfileRepository) FindByID(id uuid.UUID) (*models.Profile, error) {
 	profile := &models.Profile{}
 	err := r.db.QueryRow(`
-		SELECT id, user_id, display_name, gender, age, bio, salary_range, city, state, latitude, longitude, is_complete, is_verified, profile_score, created_at, updated_at
+		SELECT id, user_id, display_name, gender, age, bio, salary_range, city, state, latitude, longitude, is_complete, is_verified, is_fake, profile_score, created_at, updated_at
 		FROM profiles WHERE id = $1
 	`, id).Scan(&profile.ID, &profile.UserID, &profile.DisplayName, &profile.Gender, &profile.Age, &profile.Bio,
 		&profile.SalaryRange, &profile.City, &profile.State, &profile.Latitude, &profile.Longitude,
-		&profile.IsComplete, &profile.IsVerified, &profile.ProfileScore, &profile.CreatedAt, &profile.UpdatedAt)
+		&profile.IsComplete, &profile.IsVerified, &profile.IsFake, &profile.ProfileScore, &profile.CreatedAt, &profile.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -234,6 +234,43 @@ func (r *ProfileRepository) DeleteAllImages(userID uuid.UUID) error {
 func (r *ProfileRepository) Delete(userID uuid.UUID) error {
 	_, err := r.db.Exec(`DELETE FROM profiles WHERE user_id = $1`, userID)
 	return err
+}
+
+// CreateFakeProfile creates a profile marked as fake (for demo/seed purposes)
+func (r *ProfileRepository) CreateFakeProfile(userID uuid.UUID, displayName string, gender models.Gender, age int, bio, salaryRange, city, state string, lat, lng float64) (*models.Profile, error) {
+	profile := &models.Profile{
+		ID:          uuid.New(),
+		UserID:      userID,
+		DisplayName: displayName,
+		Gender:      gender,
+		Age:         age,
+		Bio:         bio,
+		City:        city,
+		State:       state,
+		Latitude:    lat,
+		Longitude:   lng,
+		IsComplete:  true,
+		IsFake:      true,
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+	}
+
+	if gender == models.GenderMale && salaryRange != "" {
+		profile.SalaryRange = models.NullString{NullString: sql.NullString{String: salaryRange, Valid: true}}
+	}
+
+	_, err := r.db.Exec(`
+		INSERT INTO profiles (id, user_id, display_name, gender, age, bio, salary_range, city, state, latitude, longitude, is_complete, is_fake, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	`, profile.ID, profile.UserID, profile.DisplayName, profile.Gender, profile.Age, profile.Bio, profile.SalaryRange,
+		profile.City, profile.State, profile.Latitude, profile.Longitude, profile.IsComplete, profile.IsFake,
+		profile.CreatedAt, profile.UpdatedAt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return profile, nil
 }
 
 func (r *ProfileRepository) ListProfiles(requestingUserID uuid.UUID, userLat, userLng float64, query *models.ListProfilesQuery) ([]models.ProfileWithImages, int, error) {

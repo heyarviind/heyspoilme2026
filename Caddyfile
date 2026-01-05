@@ -39,15 +39,12 @@ heyspoil.me {
 api.heyspoil.me {
 	reverse_proxy backend:8081
 	
-	# Security headers
+	# Security headers (CORS handled by backend)
 	header {
 		X-Content-Type-Options nosniff
 		X-Frame-Options DENY
 		X-XSS-Protection "1; mode=block"
 		Referrer-Policy strict-origin-when-cross-origin
-		Access-Control-Allow-Origin https://heyspoil.me
-		Access-Control-Allow-Methods "GET, POST, OPTIONS"
-		Access-Control-Allow-Headers "Content-Type, Accept"
 	}
 	
 	# Gzip compression

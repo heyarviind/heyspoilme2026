@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,12 +29,17 @@ type AdminUser struct {
 	DisplayName   *string    `json:"display_name,omitempty"`
 	Gender        *string    `json:"gender,omitempty"`
 	Age           *int       `json:"age,omitempty"`
+	Bio           *string    `json:"bio,omitempty"`
 	City          *string    `json:"city,omitempty"`
 	State         *string    `json:"state,omitempty"`
+	Latitude      *float64   `json:"latitude,omitempty"`
+	Longitude     *float64   `json:"longitude,omitempty"`
 	IsVerified    bool       `json:"is_verified"`
+	IsFake        bool       `json:"is_fake"`
 	IsOnline      bool       `json:"is_online"`
 	LastSeen      *time.Time `json:"last_seen,omitempty"`
 	ImageCount    int        `json:"image_count"`
+	PrimaryImage  *string    `json:"primary_image,omitempty"`
 }
 
 // AdminUserWithImages includes images for a user
@@ -86,9 +92,11 @@ func (r *AdminRepository) ListUsers(limit, offset int, search string) ([]AdminUs
 
 	query := fmt.Sprintf(`
 		SELECT u.id, u.email, u.email_verified, COALESCE(u.wealth_status, 'none'), u.created_at,
-			   p.display_name, p.gender, p.age, p.city, p.state, COALESCE(p.is_verified, false),
+			   p.display_name, p.gender, p.age, p.bio, p.city, p.state, p.latitude, p.longitude,
+			   COALESCE(p.is_verified, false), COALESCE(p.is_fake, false),
 			   COALESCE(up.is_online, false), up.last_seen,
-			   (SELECT COUNT(*) FROM profile_images WHERE user_id = u.id)
+			   (SELECT COUNT(*) FROM profile_images WHERE user_id = u.id),
+			   (SELECT url FROM profile_images WHERE user_id = u.id ORDER BY is_primary DESC, sort_order ASC LIMIT 1)
 		FROM users u
 		LEFT JOIN profiles p ON u.id = p.user_id
 		LEFT JOIN user_presence up ON u.id = up.user_id
@@ -106,13 +114,14 @@ func (r *AdminRepository) ListUsers(limit, offset int, search string) ([]AdminUs
 	var users []AdminUser
 	for rows.Next() {
 		var u AdminUser
-		var displayName, gender, city, state sql.NullString
+		var displayName, gender, bio, city, state, primaryImage sql.NullString
 		var age sql.NullInt32
+		var latitude, longitude sql.NullFloat64
 		var lastSeen sql.NullTime
 
 		err := rows.Scan(&u.ID, &u.Email, &u.EmailVerified, &u.WealthStatus, &u.CreatedAt,
-			&displayName, &gender, &age, &city, &state, &u.IsVerified,
-			&u.IsOnline, &lastSeen, &u.ImageCount)
+			&displayName, &gender, &age, &bio, &city, &state, &latitude, &longitude,
+			&u.IsVerified, &u.IsFake, &u.IsOnline, &lastSeen, &u.ImageCount, &primaryImage)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -127,14 +136,26 @@ func (r *AdminRepository) ListUsers(limit, offset int, search string) ([]AdminUs
 			ageInt := int(age.Int32)
 			u.Age = &ageInt
 		}
+		if bio.Valid {
+			u.Bio = &bio.String
+		}
 		if city.Valid {
 			u.City = &city.String
 		}
 		if state.Valid {
 			u.State = &state.String
 		}
+		if latitude.Valid {
+			u.Latitude = &latitude.Float64
+		}
+		if longitude.Valid {
+			u.Longitude = &longitude.Float64
+		}
 		if lastSeen.Valid {
 			u.LastSeen = &lastSeen.Time
+		}
+		if primaryImage.Valid {
+			u.PrimaryImage = &primaryImage.String
 		}
 
 		users = append(users, u)
@@ -146,13 +167,15 @@ func (r *AdminRepository) ListUsers(limit, offset int, search string) ([]AdminUs
 // GetUserWithImages returns a single user with all their images
 func (r *AdminRepository) GetUserWithImages(userID uuid.UUID) (*AdminUserWithImages, error) {
 	var u AdminUser
-	var displayName, gender, city, state sql.NullString
+	var displayName, gender, bio, city, state sql.NullString
 	var age sql.NullInt32
+	var latitude, longitude sql.NullFloat64
 	var lastSeen sql.NullTime
 
 	err := r.db.QueryRow(`
 		SELECT u.id, u.email, u.email_verified, COALESCE(u.wealth_status, 'none'), u.created_at,
-			   p.display_name, p.gender, p.age, p.city, p.state, COALESCE(p.is_verified, false),
+			   p.display_name, p.gender, p.age, p.bio, p.city, p.state, p.latitude, p.longitude,
+			   COALESCE(p.is_verified, false), COALESCE(p.is_fake, false),
 			   COALESCE(up.is_online, false), up.last_seen,
 			   (SELECT COUNT(*) FROM profile_images WHERE user_id = u.id)
 		FROM users u
@@ -160,8 +183,8 @@ func (r *AdminRepository) GetUserWithImages(userID uuid.UUID) (*AdminUserWithIma
 		LEFT JOIN user_presence up ON u.id = up.user_id
 		WHERE u.id = $1
 	`, userID).Scan(&u.ID, &u.Email, &u.EmailVerified, &u.WealthStatus, &u.CreatedAt,
-		&displayName, &gender, &age, &city, &state, &u.IsVerified,
-		&u.IsOnline, &lastSeen, &u.ImageCount)
+		&displayName, &gender, &age, &bio, &city, &state, &latitude, &longitude,
+		&u.IsVerified, &u.IsFake, &u.IsOnline, &lastSeen, &u.ImageCount)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -180,11 +203,20 @@ func (r *AdminRepository) GetUserWithImages(userID uuid.UUID) (*AdminUserWithIma
 		ageInt := int(age.Int32)
 		u.Age = &ageInt
 	}
+	if bio.Valid {
+		u.Bio = &bio.String
+	}
 	if city.Valid {
 		u.City = &city.String
 	}
 	if state.Valid {
 		u.State = &state.String
+	}
+	if latitude.Valid {
+		u.Latitude = &latitude.Float64
+	}
+	if longitude.Valid {
+		u.Longitude = &longitude.Float64
 	}
 	if lastSeen.Valid {
 		u.LastSeen = &lastSeen.Time
@@ -554,6 +586,37 @@ type AdminImage struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// AddUserProfileImage adds a profile image for a user (used by admin)
+func (r *AdminRepository) AddUserProfileImage(userID uuid.UUID, s3Key, url string, isPrimary bool) (*models.ProfileImage, error) {
+	var maxOrder int
+	r.db.QueryRow("SELECT COALESCE(MAX(sort_order), 0) FROM profile_images WHERE user_id = $1", userID).Scan(&maxOrder)
+
+	img := &models.ProfileImage{
+		ID:        uuid.New(),
+		UserID:    userID,
+		S3Key:     s3Key,
+		URL:       url,
+		IsPrimary: isPrimary,
+		SortOrder: maxOrder + 1,
+		CreatedAt: time.Now().UTC(),
+	}
+
+	if isPrimary {
+		r.db.Exec("UPDATE profile_images SET is_primary = false WHERE user_id = $1", userID)
+	}
+
+	_, err := r.db.Exec(`
+		INSERT INTO profile_images (id, user_id, s3_key, url, is_primary, sort_order, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, img.ID, img.UserID, img.S3Key, img.URL, img.IsPrimary, img.SortOrder, img.CreatedAt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return img, nil
+}
+
 // ListAllImages returns all images from profile_images and verification_requests
 func (r *AdminRepository) ListAllImages(limit, offset int) ([]AdminImage, int, error) {
 	// Count total from all sources
@@ -602,5 +665,137 @@ func (r *AdminRepository) ListAllImages(limit, offset int) ([]AdminImage, int, e
 	}
 
 	return images, total, nil
+}
+
+// UpdateUserPresence updates a user's online status and last_seen time
+func (r *AdminRepository) UpdateUserPresence(userID uuid.UUID, isOnline bool) error {
+	now := time.Now().UTC()
+
+	// Try to update existing record
+	result, err := r.db.Exec(`
+		UPDATE user_presence SET is_online = $1, last_seen = $2 WHERE user_id = $3
+	`, isOnline, now, userID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		// Insert new record
+		_, err = r.db.Exec(`
+			INSERT INTO user_presence (user_id, is_online, last_seen) VALUES ($1, $2, $3)
+		`, userID, isOnline, now)
+		return err
+	}
+
+	return nil
+}
+
+// UpdateUserProfile updates a user's profile fields
+func (r *AdminRepository) UpdateUserProfile(userID uuid.UUID, displayName *string, age *int, bio *string, city *string, state *string, latitude *float64, longitude *float64) error {
+	setClauses := []string{"updated_at = $1"}
+	args := []interface{}{time.Now().UTC()}
+	argIndex := 2
+
+	if displayName != nil {
+		setClauses = append(setClauses, fmt.Sprintf("display_name = $%d", argIndex))
+		args = append(args, *displayName)
+		argIndex++
+	}
+	if age != nil {
+		setClauses = append(setClauses, fmt.Sprintf("age = $%d", argIndex))
+		args = append(args, *age)
+		argIndex++
+	}
+	if bio != nil {
+		setClauses = append(setClauses, fmt.Sprintf("bio = $%d", argIndex))
+		args = append(args, *bio)
+		argIndex++
+	}
+	if city != nil {
+		setClauses = append(setClauses, fmt.Sprintf("city = $%d", argIndex))
+		args = append(args, *city)
+		argIndex++
+	}
+	if state != nil {
+		setClauses = append(setClauses, fmt.Sprintf("state = $%d", argIndex))
+		args = append(args, *state)
+		argIndex++
+	}
+	if latitude != nil {
+		setClauses = append(setClauses, fmt.Sprintf("latitude = $%d", argIndex))
+		args = append(args, *latitude)
+		argIndex++
+	}
+	if longitude != nil {
+		setClauses = append(setClauses, fmt.Sprintf("longitude = $%d", argIndex))
+		args = append(args, *longitude)
+		argIndex++
+	}
+
+	if len(setClauses) == 1 {
+		// Only updated_at, nothing to update
+		return nil
+	}
+
+	args = append(args, userID)
+	query := fmt.Sprintf("UPDATE profiles SET %s WHERE user_id = $%d", 
+		strings.Join(setClauses, ", "), argIndex)
+
+	_, err := r.db.Exec(query, args...)
+	return err
+}
+
+// SendMessageAsUser sends a message as a specific user to another user
+func (r *AdminRepository) SendMessageAsUser(senderID, recipientID uuid.UUID, content string) error {
+	now := time.Now().UTC()
+
+	// Find or create conversation between these users
+	var conversationID uuid.UUID
+	err := r.db.QueryRow(`
+		SELECT c.id FROM conversations c
+		JOIN conversation_participants cp1 ON c.id = cp1.conversation_id AND cp1.user_id = $1
+		JOIN conversation_participants cp2 ON c.id = cp2.conversation_id AND cp2.user_id = $2
+		LIMIT 1
+	`, senderID, recipientID).Scan(&conversationID)
+
+	if err == sql.ErrNoRows {
+		// Create new conversation
+		conversationID = uuid.New()
+		_, err = r.db.Exec(`
+			INSERT INTO conversations (id, initiated_by, created_at) VALUES ($1, $2, $3)
+		`, conversationID, senderID, now)
+		if err != nil {
+			return err
+		}
+
+		// Add participants
+		_, err = r.db.Exec(`
+			INSERT INTO conversation_participants (conversation_id, user_id, joined_at)
+			VALUES ($1, $2, $3), ($1, $4, $3)
+		`, conversationID, senderID, now, recipientID)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	// Insert message
+	messageID := uuid.New()
+	_, err = r.db.Exec(`
+		INSERT INTO messages (id, conversation_id, sender_id, content, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`, messageID, conversationID, senderID, content, now)
+	if err != nil {
+		return err
+	}
+
+	// Update conversation last_message_at
+	_, err = r.db.Exec(`
+		UPDATE conversations SET last_message_at = $1 WHERE id = $2
+	`, now, conversationID)
+
+	return err
 }
 
