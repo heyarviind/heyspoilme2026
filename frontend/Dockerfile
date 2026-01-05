@@ -3,6 +3,14 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+# Build args for Vite (needed at build time)
+ARG VITE_API_URL=https://api.heyspoil.me
+ARG VITE_WS_URL=wss://api.heyspoil.me/ws
+
+# Set as env vars so Vite can access them during build
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_WS_URL=$VITE_WS_URL
+
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
